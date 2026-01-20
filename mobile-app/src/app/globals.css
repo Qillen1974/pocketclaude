@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 17, 24, 39;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Terminal text colors from ANSI */
+.ansi-bright-black { color: #808080; }
+.ansi-red { color: #f44747; }
+.ansi-bright-red { color: #f44747; }
+.ansi-green { color: #4ec9b0; }
+.ansi-bright-green { color: #4ec9b0; }
+.ansi-yellow { color: #dcdcaa; }
+.ansi-bright-yellow { color: #dcdcaa; }
+.ansi-blue { color: #569cd6; }
+.ansi-bright-blue { color: #569cd6; }
+.ansi-magenta { color: #c586c0; }
+.ansi-bright-magenta { color: #c586c0; }
+.ansi-cyan { color: #9cdcfe; }
+.ansi-bright-cyan { color: #9cdcfe; }
+.ansi-white { color: #d4d4d4; }
+.ansi-bright-white { color: #ffffff; }
