@@ -115,9 +115,19 @@ export class SessionManager {
 
     session.lastActivity = Date.now();
     session.status = 'active';
-    // Append carriage return to submit the input (press Enter)
+    // Send input with Enter to submit
+    // Claude Code might need Escape first (to ensure we're in command mode) then the text and Enter
     session.pty.write(input + '\r');
     console.log(`[SessionManager] Sent input to session ${sessionId}: ${input.substring(0, 50)}...`);
+
+    // Send an extra Enter after a brief delay to ensure submission
+    setTimeout(() => {
+      if (this.sessions.has(sessionId)) {
+        session.pty.write('\r');
+        console.log(`[SessionManager] Sent extra Enter to session ${sessionId}`);
+      }
+    }, 100);
+
     return true;
   }
 
