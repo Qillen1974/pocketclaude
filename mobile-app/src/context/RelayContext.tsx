@@ -126,21 +126,32 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       }
       case 'output': {
         const payload = message.payload as OutputPayload;
-        console.log('[RelayContext] Output received:', {
-          payloadSessionId: payload.sessionId,
-          currentSessionId,
-          match: payload.sessionId === currentSessionId,
-          dataLength: payload.data?.length
-        });
+        const data = payload.data;
+
+        // Detect screen clear/redraw sequences - clear accumulated output
+        // ESC[2J = clear screen, ESC[H = cursor home (often precedes full redraw)
+        const isScreenClear = data.includes('\x1b[2J') ||
+          data.includes('\x1b[H') ||
+          // Claude Code header indicates a full screen redraw
+          data.includes('▐▛███▜▌');
+
         if (payload.sessionId === currentSessionId) {
-          setTerminalOutput(prev => prev + payload.data);
+          if (isScreenClear) {
+            // Full redraw - replace instead of append
+            setTerminalOutput(data);
+          } else {
+            setTerminalOutput(prev => prev + data);
+          }
         } else if (currentSessionId === null && payload.sessionId) {
           // Buffer output if currentSessionId not yet set (race condition)
-          console.log('[RelayContext] Buffering output for session:', payload.sessionId);
           setOutputBuffer(prev => {
             const newMap = new Map(prev);
-            const existing = newMap.get(payload.sessionId) || '';
-            newMap.set(payload.sessionId, existing + payload.data);
+            if (isScreenClear) {
+              newMap.set(payload.sessionId, data);
+            } else {
+              const existing = newMap.get(payload.sessionId) || '';
+              newMap.set(payload.sessionId, existing + data);
+            }
             return newMap;
           });
         }
