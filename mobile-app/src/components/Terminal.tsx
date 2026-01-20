@@ -24,8 +24,9 @@ function isMeaningfulLine(line: string): boolean {
 // Remove duplicate content from terminal output
 function deduplicateContent(text: string): string {
   const stripped = stripAnsi(text);
-  const lines = text.split('\n');
-  const strippedLines = stripped.split('\n');
+  // Normalize line endings and split
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const strippedLines = stripped.replace(/\r\n?/g, '\n').split('\n');
   // Normalize: trim, collapse whitespace, normalize unicode
   const normalizedLines = strippedLines.map(line =>
     line
