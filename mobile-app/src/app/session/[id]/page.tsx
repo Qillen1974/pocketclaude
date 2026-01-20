@@ -29,17 +29,20 @@ export default function SessionPage() {
     uploadStatus,
   } = useRelay();
 
+  // Set session ID immediately on mount - this must happen before output arrives
+  useEffect(() => {
+    if (sessionId) {
+      console.log('[SessionPage] Setting currentSessionId to:', sessionId);
+      setCurrentSessionId(sessionId);
+    }
+  }, [sessionId, setCurrentSessionId]);
+
   useEffect(() => {
     if (status === 'disconnected') {
       router.push('/');
       return;
     }
-
-    // Set the current session from URL
-    if (sessionId && sessionId !== currentSessionId) {
-      setCurrentSessionId(sessionId);
-    }
-  }, [status, sessionId, currentSessionId, setCurrentSessionId, router]);
+  }, [status, router]);
 
   const handleBack = () => {
     router.push('/projects');
