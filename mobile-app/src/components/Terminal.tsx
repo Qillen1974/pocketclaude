@@ -23,14 +23,13 @@ function isMeaningfulLine(line: string): boolean {
 
 // Remove duplicate content from terminal output
 function deduplicateContent(text: string): string {
-  const stripped = stripAnsi(text);
   // Normalize line endings and split
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
-  const strippedLines = stripped.replace(/\r\n?/g, '\n').split('\n');
-  // Normalize: trim, collapse whitespace, normalize unicode
-  const normalizedLines = strippedLines.map(line =>
-    line
-      .normalize('NFKC')  // Normalize unicode variants
+
+  // Normalize each line for comparison (strip ANSI per-line to maintain alignment)
+  const normalizedLines = lines.map(line =>
+    stripAnsi(line)
+      .normalize('NFKC')
       .trim()
       .replace(/[\s\u00A0\u2000-\u200B\u2028\u2029\u3000]+/g, ' ')
       .replace(/\s+/g, ' ')
