@@ -26,7 +26,8 @@ function deduplicateContent(text: string): string {
   const stripped = stripAnsi(text);
   const lines = text.split('\n');
   const strippedLines = stripped.split('\n');
-  const normalizedLines = strippedLines.map(line => line.trim());
+  // Normalize: trim and collapse multiple whitespace to single space
+  const normalizedLines = strippedLines.map(line => line.trim().replace(/\s+/g, ' '));
 
   // First pass: remove consecutive identical lines
   const dedupedLines: string[] = [];
@@ -40,32 +41,22 @@ function deduplicateContent(text: string): string {
     }
   }
 
-  // Second pass: find meaningful lines and check for duplicates
-  // Keep track of seen meaningful content and only keep the last occurrence
-  const meaningfulContentLastIndex = new Map<string, number>();
-
+  // Second pass: for any non-empty content that appears multiple times, keep only the last
+  const lastOccurrence = new Map<string, number>();
   for (let i = 0; i < dedupedNormalized.length; i++) {
-    if (isMeaningfulLine(dedupedNormalized[i])) {
-      meaningfulContentLastIndex.set(dedupedNormalized[i], i);
+    const norm = dedupedNormalized[i];
+    if (norm && norm.length > 0) {
+      lastOccurrence.set(norm, i);
     }
   }
 
-  // Build result, skipping earlier occurrences of repeated meaningful content
-  const seenMeaningful = new Set<string>();
+  // Build result - skip lines that appear again later (unless they're empty/whitespace-only)
   const result: string[] = [];
-
-  // Process in reverse to keep last occurrence
-  for (let i = dedupedLines.length - 1; i >= 0; i--) {
-    const normalized = dedupedNormalized[i];
-    if (isMeaningfulLine(normalized)) {
-      if (!seenMeaningful.has(normalized)) {
-        seenMeaningful.add(normalized);
-        result.unshift(dedupedLines[i]);
-      }
-      // Skip earlier occurrences
-    } else {
-      // Non-meaningful lines: keep them but avoid excessive consecutive dividers/blanks
-      result.unshift(dedupedLines[i]);
+  for (let i = 0; i < dedupedLines.length; i++) {
+    const norm = dedupedNormalized[i];
+    // Keep if: empty line, OR this is the last occurrence of this content
+    if (!norm || norm.length === 0 || lastOccurrence.get(norm) === i) {
+      result.push(dedupedLines[i]);
     }
   }
 
