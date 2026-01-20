@@ -10,7 +10,8 @@ import {
   SessionHistoryItem,
   StatusPayload,
   OutputPayload,
-  ErrorPayload
+  ErrorPayload,
+  QUICK_SESSION_PROJECT_ID,
 } from '@/lib/types';
 
 interface RelayContextValue {
@@ -22,17 +23,20 @@ interface RelayContextValue {
   terminalOutput: string;
   error: string | null;
   sessionHistory: SessionHistoryItem[];
+  uploadStatus: 'idle' | 'uploading' | 'success' | 'error';
   connect: (token: string) => void;
   disconnect: () => void;
   listProjects: () => void;
   listSessions: () => void;
   startSession: (projectId: string) => void;
+  startQuickSession: () => void;
   sendInput: (input: string) => void;
   closeSession: () => void;
   setCurrentSessionId: (sessionId: string | null) => void;
   clearError: () => void;
   clearTerminal: () => void;
   getSessionHistory: (projectId: string) => void;
+  uploadFile: (fileName: string, fileContent: string, mimeType?: string) => void;
 }
 
 const RelayContext = createContext<RelayContextValue | null>(null);
@@ -44,6 +48,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
   const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   const handleMessage = useCallback((message: Message) => {
     switch (message.type) {
@@ -85,6 +90,12 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
             setSessionHistory(data.history || []);
             break;
           }
+          case 'file_uploaded': {
+            setUploadStatus('success');
+            // Reset upload status after a delay
+            setTimeout(() => setUploadStatus('idle'), 2000);
+            break;
+          }
         }
         break;
       }
@@ -98,6 +109,11 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       case 'error': {
         const payload = message.payload as ErrorPayload;
         setError(`${payload.code}: ${payload.message}`);
+        // Reset upload status on error
+        if (payload.code === 'UPLOAD_FAILED' || payload.code === 'MISSING_FILE_DATA') {
+          setUploadStatus('error');
+          setTimeout(() => setUploadStatus('idle'), 3000);
+        }
         break;
       }
     }
@@ -117,6 +133,10 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
 
   const startSession = useCallback((projectId: string) => {
     sendCommand({ command: 'start_session', projectId });
+  }, [sendCommand]);
+
+  const startQuickSession = useCallback(() => {
+    sendCommand({ command: 'start_session', projectId: QUICK_SESSION_PROJECT_ID });
   }, [sendCommand]);
 
   const sendInput = useCallback((input: string) => {
@@ -142,6 +162,18 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     sendCommand({ command: 'get_session_history', projectId });
   }, [sendCommand]);
 
+  const uploadFile = useCallback((fileName: string, fileContent: string, mimeType?: string) => {
+    if (!currentSessionId) return;
+    setUploadStatus('uploading');
+    sendCommand({
+      command: 'upload_file',
+      sessionId: currentSessionId,
+      fileName,
+      fileContent,
+      mimeType,
+    });
+  }, [sendCommand, currentSessionId]);
+
   // Auto-fetch projects when authenticated and agent connected
   useEffect(() => {
     if (status === 'authenticated' && agentConnected) {
@@ -160,17 +192,20 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       terminalOutput,
       error,
       sessionHistory,
+      uploadStatus,
       connect,
       disconnect,
       listProjects,
       listSessions,
       startSession,
+      startQuickSession,
       sendInput,
       closeSession,
       setCurrentSessionId,
       clearError,
       clearTerminal,
       getSessionHistory,
+      uploadFile,
     }}>
       {children}
     </RelayContext.Provider>

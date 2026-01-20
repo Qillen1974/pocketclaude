@@ -6,6 +6,7 @@ import { useRelay } from '@/context/RelayContext';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { Terminal } from '@/components/Terminal';
 import { InputBar } from '@/components/InputBar';
+import { QUICK_SESSION_PROJECT_ID } from '@/lib/types';
 
 export default function SessionPage() {
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function SessionPage() {
     projects,
     error,
     clearError,
+    uploadFile,
+    uploadStatus,
   } = useRelay();
 
   useEffect(() => {
@@ -49,6 +52,8 @@ export default function SessionPage() {
 
   const session = sessions.find(s => s.sessionId === sessionId);
   const project = session ? projects.find(p => p.id === session.projectId) : null;
+  const isQuickSession = session?.projectId === QUICK_SESSION_PROJECT_ID;
+  const sessionTitle = isQuickSession ? 'Quick Session' : (project?.name || 'Session');
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col h-screen">
@@ -63,8 +68,9 @@ export default function SessionPage() {
               &larr;
             </button>
             <div>
-              <h1 className="text-lg font-semibold text-white">
-                {project?.name || 'Session'}
+              <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+                {isQuickSession && <span className="text-purple-400">⚡</span>}
+                {sessionTitle}
               </h1>
               {session && (
                 <span className={`text-xs ${session.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -101,6 +107,8 @@ export default function SessionPage() {
       {/* Input */}
       <InputBar
         onSubmit={sendInput}
+        onUpload={uploadFile}
+        uploadStatus={uploadStatus}
         disabled={!agentConnected || !session}
         placeholder={!agentConnected ? 'Agent disconnected' : 'Type a message...'}
       />

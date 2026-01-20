@@ -2,7 +2,8 @@ import 'dotenv/config';
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Message, CommandPayload, ProjectConfig, ProjectsConfig } from './types';
+import * as os from 'os';
+import { Message, CommandPayload, ProjectConfig, ProjectsConfig, QUICK_SESSION_PROJECT_ID } from './types';
 import { SessionManager } from './session-manager';
 import { ReconnectManager } from './reconnect';
 import { HistoryManager } from './history-manager';
@@ -18,6 +19,9 @@ if (!RELAY_URL || !RELAY_TOKEN) {
 // TypeScript narrowing - these are now guaranteed to be strings
 const relayUrl: string = RELAY_URL;
 const relayToken: string = RELAY_TOKEN;
+
+// Quick session path - defaults to user home directory
+const QUICK_SESSION_PATH = process.env.QUICK_SESSION_PATH || os.homedir();
 
 // Load projects config
 function loadProjects(): ProjectConfig[] {
@@ -95,20 +99,30 @@ function handleCommand(command: CommandPayload): void {
     }
 
     case 'start_session': {
-      if (!command.projectId) {
-        sendError('MISSING_PROJECT_ID', 'projectId is required');
-        return;
-      }
-
-      const project = projects.find(p => p.id === command.projectId);
-      if (!project) {
-        sendError('PROJECT_NOT_FOUND', `Project ${command.projectId} not found`);
-        return;
-      }
-
       if (!sessionManager) {
         sendError('NO_SESSION_MANAGER', 'Session manager not initialized');
         return;
+      }
+
+      let project: ProjectConfig;
+
+      // Check if this is a quick session (no projectId or special quick session ID)
+      if (!command.projectId || command.projectId === QUICK_SESSION_PROJECT_ID) {
+        // Create a virtual project config for quick session
+        project = {
+          id: QUICK_SESSION_PROJECT_ID,
+          name: 'Quick Session',
+          path: QUICK_SESSION_PATH,
+        };
+        console.log(`[Agent] Starting quick session at ${QUICK_SESSION_PATH}`);
+      } else {
+        // Find the project by ID
+        const foundProject = projects.find(p => p.id === command.projectId);
+        if (!foundProject) {
+          sendError('PROJECT_NOT_FOUND', `Project ${command.projectId} not found`);
+          return;
+        }
+        project = foundProject;
       }
 
       const sessionId = sessionManager.startSession(project);
@@ -122,7 +136,8 @@ function handleCommand(command: CommandPayload): void {
 
       sendStatus('session_started', {
         sessionId,
-        projectId: command.projectId,
+        projectId: project.id,
+        isQuickSession: project.id === QUICK_SESSION_PROJECT_ID,
         hasPreviousContext: previousContext.length > 0
       }, sessionId);
       break;
@@ -191,6 +206,57 @@ function handleCommand(command: CommandPayload): void {
 
       const context = historyManager.getContextSummary(command.projectId);
       sendStatus('context_summary', { projectId: command.projectId, context });
+      break;
+    }
+
+    case 'upload_file': {
+      if (!command.sessionId) {
+        sendError('MISSING_SESSION_ID', 'sessionId is required');
+        return;
+      }
+      if (!command.fileName || !command.fileContent) {
+        sendError('MISSING_FILE_DATA', 'fileName and fileContent are required');
+        return;
+      }
+
+      if (!sessionManager) {
+        sendError('NO_SESSION_MANAGER', 'Session manager not initialized');
+        return;
+      }
+
+      const session = sessionManager.getSession(command.sessionId);
+      if (!session) {
+        sendError('SESSION_NOT_FOUND', `Session ${command.sessionId} not found`, command.sessionId);
+        return;
+      }
+
+      try {
+        // Create uploads folder in session's working directory
+        const uploadsDir = path.join(session.workingDir, 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        // Sanitize filename - remove path components and dangerous characters
+        const sanitizedName = path.basename(command.fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filePath = path.join(uploadsDir, sanitizedName);
+
+        // Decode base64 and write file
+        const fileBuffer = Buffer.from(command.fileContent, 'base64');
+        fs.writeFileSync(filePath, fileBuffer);
+
+        console.log(`[Agent] File uploaded: ${filePath} (${fileBuffer.length} bytes)`);
+
+        sendStatus('file_uploaded', {
+          sessionId: command.sessionId,
+          fileName: sanitizedName,
+          filePath: filePath,
+          size: fileBuffer.length,
+        }, command.sessionId);
+      } catch (err) {
+        console.error('[Agent] File upload error:', err);
+        sendError('UPLOAD_FAILED', `Failed to upload file: ${(err as Error).message}`, command.sessionId);
+      }
       break;
     }
 

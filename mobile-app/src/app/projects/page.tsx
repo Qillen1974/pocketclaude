@@ -17,6 +17,7 @@ export default function ProjectsPage() {
     sessions,
     sessionHistory,
     startSession,
+    startQuickSession,
     setCurrentSessionId,
     disconnect,
     error,
@@ -32,6 +33,10 @@ export default function ProjectsPage() {
 
   const handleSelectProject = (projectId: string) => {
     startSession(projectId);
+  };
+
+  const handleQuickSession = () => {
+    startQuickSession();
   };
 
   const handleOpenSession = (sessionId: string) => {
@@ -98,25 +103,49 @@ export default function ProjectsPage() {
               Make sure the PC agent is running and connected
             </p>
           </div>
-        ) : projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <div className="text-gray-400 mb-2">No Projects</div>
-            <p className="text-gray-500 text-sm">
-              Configure projects in your PC agent&apos;s projects.json
-            </p>
-          </div>
         ) : (
           <div className="space-y-4">
-            {projects.map(project => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                sessions={sessions}
-                onSelect={handleSelectProject}
-                onOpenSession={handleOpenSession}
-                onViewHistory={handleViewHistory}
-              />
-            ))}
+            {/* Quick Session Card */}
+            <div className="bg-gray-800 rounded-lg p-4 border border-purple-600/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-medium flex items-center gap-2">
+                    <span className="text-purple-400">⚡</span>
+                    Quick Session
+                  </h3>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Start Claude without selecting a project
+                  </p>
+                </div>
+                <button
+                  onClick={handleQuickSession}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Start
+                </button>
+              </div>
+            </div>
+
+            {/* Projects */}
+            {projects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-center">
+                <div className="text-gray-400 mb-2">No Projects</div>
+                <p className="text-gray-500 text-sm">
+                  Configure projects in your PC agent&apos;s projects.json
+                </p>
+              </div>
+            ) : (
+              projects.map(project => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  sessions={sessions}
+                  onSelect={handleSelectProject}
+                  onOpenSession={handleOpenSession}
+                  onViewHistory={handleViewHistory}
+                />
+              ))
+            )}
           </div>
         )}
       </main>

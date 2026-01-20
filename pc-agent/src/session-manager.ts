@@ -56,6 +56,7 @@ export class SessionManager {
     const session: Session = {
       pty: ptyProcess,
       projectId: project.id,
+      workingDir: project.path,
       status: 'active',
       buffer: [],
       lastActivity: Date.now(),

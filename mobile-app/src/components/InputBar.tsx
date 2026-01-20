@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, FormEvent, KeyboardEvent } from 'react';
+import { FileUploadButton } from './FileUploadButton';
 
 interface InputBarProps {
   onSubmit: (input: string) => void;
+  onUpload?: (fileName: string, fileContent: string, mimeType?: string) => void;
+  uploadStatus?: 'idle' | 'uploading' | 'success' | 'error';
   disabled?: boolean;
   placeholder?: string;
 }
 
-export function InputBar({ onSubmit, disabled, placeholder = 'Type a message...' }: InputBarProps) {
+export function InputBar({ onSubmit, onUpload, uploadStatus = 'idle', disabled, placeholder = 'Type a message...' }: InputBarProps) {
   const [input, setInput] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
@@ -28,7 +31,14 @@ export function InputBar({ onSubmit, disabled, placeholder = 'Type a message...'
 
   return (
     <form onSubmit={handleSubmit} className="border-t border-gray-700 bg-gray-800 p-4">
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
+        {onUpload && (
+          <FileUploadButton
+            onUpload={onUpload}
+            uploadStatus={uploadStatus}
+            disabled={disabled}
+          />
+        )}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
