@@ -41,7 +41,8 @@ export class SessionManager {
     const sessionId = uuidv4();
 
     // Determine shell based on platform
-    const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
+    // Use cmd.exe on Windows to avoid PowerShell execution policy issues
+    const shell = process.platform === 'win32' ? 'cmd.exe' : 'bash';
 
     console.log(`[SessionManager] Starting session ${sessionId} for project ${project.name} at ${project.path}`);
 
@@ -63,6 +64,7 @@ export class SessionManager {
     };
 
     ptyProcess.onData((data: string) => {
+      console.log(`[SessionManager] PTY output (${data.length} chars): ${data.substring(0, 100).replace(/\r?\n/g, '\\n')}`);
       session.lastActivity = Date.now();
       session.status = 'active';
 

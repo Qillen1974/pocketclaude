@@ -53,6 +53,7 @@ function sendMessage(message: Omit<Message, 'timestamp'>): void {
 }
 
 function sendOutput(sessionId: string, data: string): void {
+  console.log(`[Agent] Sending output for session ${sessionId} (${data.length} chars)`);
   // Record to history
   historyManager.appendOutput(sessionId, data);
 

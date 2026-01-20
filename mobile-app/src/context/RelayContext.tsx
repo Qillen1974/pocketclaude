@@ -67,6 +67,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
           }
           case 'session_started': {
             const data = payload.data as { sessionId: string; projectId: string };
+            console.log('[RelayContext] Session started:', data.sessionId);
             setCurrentSessionId(data.sessionId);
             setTerminalOutput('');
             setSessions(prev => [...prev, {
@@ -101,6 +102,12 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       }
       case 'output': {
         const payload = message.payload as OutputPayload;
+        console.log('[RelayContext] Output received:', {
+          payloadSessionId: payload.sessionId,
+          currentSessionId,
+          match: payload.sessionId === currentSessionId,
+          dataLength: payload.data?.length
+        });
         if (payload.sessionId === currentSessionId) {
           setTerminalOutput(prev => prev + payload.data);
         }
