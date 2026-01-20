@@ -5,6 +5,7 @@ import * as path from 'path';
 import { Message, CommandPayload, ProjectConfig, ProjectsConfig } from './types';
 import { SessionManager } from './session-manager';
 import { ReconnectManager } from './reconnect';
+import { HistoryManager } from './history-manager';
 
 const RELAY_URL = process.env.RELAY_URL;
 const RELAY_TOKEN = process.env.RELAY_TOKEN;
@@ -36,6 +37,10 @@ let projects = loadProjects();
 let ws: WebSocket | null = null;
 let sessionManager: SessionManager | null = null;
 const reconnectManager = new ReconnectManager();
+const historyManager = new HistoryManager();
+
+// Track session to project mapping for history
+const sessionProjectMap = new Map<string, { projectId: string; projectName: string }>();
 
 function sendMessage(message: Omit<Message, 'timestamp'>): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -44,6 +49,9 @@ function sendMessage(message: Omit<Message, 'timestamp'>): void {
 }
 
 function sendOutput(sessionId: string, data: string): void {
+  // Record to history
+  historyManager.appendOutput(sessionId, data);
+
   sendMessage({
     type: 'output',
     sessionId,
@@ -104,7 +112,19 @@ function handleCommand(command: CommandPayload): void {
       }
 
       const sessionId = sessionManager.startSession(project);
-      sendStatus('session_started', { sessionId, projectId: command.projectId }, sessionId);
+
+      // Start history recording
+      sessionProjectMap.set(sessionId, { projectId: project.id, projectName: project.name });
+      historyManager.startSession(sessionId, project.id, project.name);
+
+      // Get previous context if available
+      const previousContext = historyManager.getContextSummary(project.id);
+
+      sendStatus('session_started', {
+        sessionId,
+        projectId: command.projectId,
+        hasPreviousContext: previousContext.length > 0
+      }, sessionId);
       break;
     }
 
@@ -141,10 +161,36 @@ function handleCommand(command: CommandPayload): void {
         return;
       }
 
+      // End history recording
+      historyManager.endSession(command.sessionId);
+      sessionProjectMap.delete(command.sessionId);
+
       const success = sessionManager.closeSession(command.sessionId);
       if (!success) {
         sendError('SESSION_NOT_FOUND', `Session ${command.sessionId} not found`, command.sessionId);
       }
+      break;
+    }
+
+    case 'get_session_history': {
+      if (!command.projectId) {
+        sendError('MISSING_PROJECT_ID', 'projectId is required');
+        return;
+      }
+
+      const history = historyManager.getSessionHistory(command.projectId, 10);
+      sendStatus('session_history', { projectId: command.projectId, history });
+      break;
+    }
+
+    case 'get_context_summary': {
+      if (!command.projectId) {
+        sendError('MISSING_PROJECT_ID', 'projectId is required');
+        return;
+      }
+
+      const context = historyManager.getContextSummary(command.projectId);
+      sendStatus('context_summary', { projectId: command.projectId, context });
       break;
     }
 

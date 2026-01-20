@@ -1,23 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRelay } from '@/context/RelayContext';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { ProjectCard } from '@/components/ProjectCard';
+import { SessionHistory } from '@/components/SessionHistory';
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const [showHistory, setShowHistory] = useState(false);
   const {
     status,
     agentConnected,
     projects,
     sessions,
+    sessionHistory,
     startSession,
     setCurrentSessionId,
     disconnect,
     error,
     clearError,
+    getSessionHistory,
   } = useRelay();
 
   useEffect(() => {
@@ -39,6 +43,11 @@ export default function ProjectsPage() {
     localStorage.removeItem('relay_token');
     disconnect();
     router.push('/');
+  };
+
+  const handleViewHistory = (projectId: string) => {
+    getSessionHistory(projectId);
+    setShowHistory(true);
   };
 
   // Navigate to session page when a session is started
@@ -105,11 +114,20 @@ export default function ProjectsPage() {
                 sessions={sessions}
                 onSelect={handleSelectProject}
                 onOpenSession={handleOpenSession}
+                onViewHistory={handleViewHistory}
               />
             ))}
           </div>
         )}
       </main>
+
+      {/* Session History Modal */}
+      {showHistory && (
+        <SessionHistory
+          history={sessionHistory}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }

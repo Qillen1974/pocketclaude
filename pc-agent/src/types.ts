@@ -16,7 +16,7 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary';
   projectId?: string;
   input?: string;
   sessionId?: string;

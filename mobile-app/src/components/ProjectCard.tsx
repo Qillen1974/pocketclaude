@@ -7,9 +7,10 @@ interface ProjectCardProps {
   sessions: SessionInfo[];
   onSelect: (projectId: string) => void;
   onOpenSession: (sessionId: string) => void;
+  onViewHistory: (projectId: string) => void;
 }
 
-export function ProjectCard({ project, sessions, onSelect, onOpenSession }: ProjectCardProps) {
+export function ProjectCard({ project, sessions, onSelect, onOpenSession, onViewHistory }: ProjectCardProps) {
   const projectSessions = sessions.filter(s => s.projectId === project.id);
   const hasActiveSession = projectSessions.length > 0;
 
@@ -46,6 +47,12 @@ export function ProjectCard({ project, sessions, onSelect, onOpenSession }: Proj
             </button>
           ))
         )}
+        <button
+          onClick={() => onViewHistory(project.id)}
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          History
+        </button>
       </div>
     </div>
   );

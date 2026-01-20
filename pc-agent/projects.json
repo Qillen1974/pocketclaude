@@ -2,8 +2,23 @@
   "projects": [
     {
       "id": "ai-helper",
-      "name": "AI Helper",
+      "name": "AI Helper (PocketClaude)",
       "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\ai-helper"
+    },
+    {
+      "id": "scm-workdesk",
+      "name": "SCM Workdesk",
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\scm-workdesk"
+    },
+    {
+      "id": "task-manager-ai",
+      "name": "Task Manager AI",
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\task-manager-ai"
+    },
+    {
+      "id": "travel-independent",
+      "name": "Travel Independent",
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\travel-independent"
     }
   ]
 }

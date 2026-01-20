@@ -7,6 +7,7 @@ import {
   ConnectionStatus,
   ProjectInfo,
   SessionInfo,
+  SessionHistoryItem,
   StatusPayload,
   OutputPayload,
   ErrorPayload
@@ -20,6 +21,7 @@ interface RelayContextValue {
   currentSessionId: string | null;
   terminalOutput: string;
   error: string | null;
+  sessionHistory: SessionHistoryItem[];
   connect: (token: string) => void;
   disconnect: () => void;
   listProjects: () => void;
@@ -30,6 +32,7 @@ interface RelayContextValue {
   setCurrentSessionId: (sessionId: string | null) => void;
   clearError: () => void;
   clearTerminal: () => void;
+  getSessionHistory: (projectId: string) => void;
 }
 
 const RelayContext = createContext<RelayContextValue | null>(null);
@@ -40,6 +43,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
 
   const handleMessage = useCallback((message: Message) => {
     switch (message.type) {
@@ -74,6 +78,11 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
             if (currentSessionId === data.sessionId) {
               setCurrentSessionId(null);
             }
+            break;
+          }
+          case 'session_history': {
+            const data = payload.data as { projectId: string; history: SessionHistoryItem[] };
+            setSessionHistory(data.history || []);
             break;
           }
         }
@@ -129,6 +138,10 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     setTerminalOutput('');
   }, []);
 
+  const getSessionHistory = useCallback((projectId: string) => {
+    sendCommand({ command: 'get_session_history', projectId });
+  }, [sendCommand]);
+
   // Auto-fetch projects when authenticated and agent connected
   useEffect(() => {
     if (status === 'authenticated' && agentConnected) {
@@ -146,6 +159,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       currentSessionId,
       terminalOutput,
       error,
+      sessionHistory,
       connect,
       disconnect,
       listProjects,
@@ -156,6 +170,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       setCurrentSessionId,
       clearError,
       clearTerminal,
+      getSessionHistory,
     }}>
       {children}
     </RelayContext.Provider>
