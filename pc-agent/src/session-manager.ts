@@ -91,9 +91,15 @@ export class SessionManager {
     this.sessions.set(sessionId, session);
 
     // Start claude command after a brief delay
+    // Use CLAUDE_PATH env var or default to user's npm global path
+    const claudeCmd = process.env.CLAUDE_PATH ||
+      (process.platform === 'win32'
+        ? '"C:\\Users\\charl\\AppData\\Roaming\\npm\\claude.cmd"'
+        : 'claude');
+
     setTimeout(() => {
       if (this.sessions.has(sessionId)) {
-        ptyProcess.write('claude\r');
+        ptyProcess.write(`${claudeCmd}\r`);
       }
     }, 500);
 
