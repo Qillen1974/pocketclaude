@@ -15,24 +15,25 @@ function deduplicateContent(text: string): string {
   const stripped = stripAnsi(text);
 
   // Try to find repeated blocks by looking for the same content appearing multiple times
-  // Look for patterns like: "text\n---\ntext\n---\n" and keep only the last occurrence
   const lines = text.split('\n');
   const strippedLines = stripped.split('\n');
 
-  // First pass: remove consecutive identical lines
+  // Normalize lines for comparison (trim whitespace)
+  const normalizedLines = strippedLines.map(line => line.trim());
+
+  // First pass: remove consecutive identical lines (by trimmed content)
   const dedupedLines: string[] = [];
-  const dedupedStripped: string[] = [];
+  const dedupedNormalized: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const strippedLine = strippedLines[i];
-    if (i === 0 || strippedLine !== dedupedStripped[dedupedStripped.length - 1] || strippedLine.trim() === '') {
+    const normalized = normalizedLines[i];
+    if (i === 0 || normalized !== dedupedNormalized[dedupedNormalized.length - 1] || normalized === '') {
       dedupedLines.push(lines[i]);
-      dedupedStripped.push(strippedLine);
+      dedupedNormalized.push(normalized);
     }
   }
 
   // Second pass: detect repeated multi-line blocks and keep only the last
-  // Look for a block that repeats (e.g., user input followed by divider)
   const result: string[] = [];
   let i = 0;
 
@@ -42,11 +43,11 @@ function deduplicateContent(text: string): string {
 
     // Try block sizes from 1 to 5 lines
     for (let size = 1; size <= Math.min(5, Math.floor((dedupedLines.length - i) / 2)); size++) {
-      // Check if the next 'size' lines repeat
+      // Check if the next 'size' lines repeat (comparing trimmed content)
       let isRepeating = true;
       for (let k = 0; k < size; k++) {
         if (i + size + k >= dedupedLines.length ||
-            dedupedStripped[i + k] !== dedupedStripped[i + size + k]) {
+            dedupedNormalized[i + k] !== dedupedNormalized[i + size + k]) {
           isRepeating = false;
           break;
         }
@@ -62,7 +63,7 @@ function deduplicateContent(text: string): string {
       while (j + blockSize <= dedupedLines.length) {
         let stillRepeating = true;
         for (let k = 0; k < blockSize; k++) {
-          if (dedupedStripped[i + k] !== dedupedStripped[j + k]) {
+          if (dedupedNormalized[i + k] !== dedupedNormalized[j + k]) {
             stillRepeating = false;
             break;
           }
