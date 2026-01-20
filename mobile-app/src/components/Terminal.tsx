@@ -10,18 +10,25 @@ interface TerminalProps {
 // Claude Code header pattern - indicates start of a screen frame
 const CLAUDE_HEADER = '▐▛███▜▌';
 
-// Remove duplicate blocks from terminal output
+// Check if a line is "meaningful" (not just whitespace, dividers, or common UI elements)
+function isMeaningfulLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  // Skip divider lines (all dashes/boxes)
+  if (/^[─━═┄┈\-]+$/.test(trimmed)) return false;
+  // Skip common UI hints
+  if (trimmed.startsWith('ctrl+') || trimmed === '? for shortcuts') return false;
+  return true;
+}
+
+// Remove duplicate content from terminal output
 function deduplicateContent(text: string): string {
   const stripped = stripAnsi(text);
-
-  // Try to find repeated blocks by looking for the same content appearing multiple times
   const lines = text.split('\n');
   const strippedLines = stripped.split('\n');
-
-  // Normalize lines for comparison (trim whitespace)
   const normalizedLines = strippedLines.map(line => line.trim());
 
-  // First pass: remove consecutive identical lines (by trimmed content)
+  // First pass: remove consecutive identical lines
   const dedupedLines: string[] = [];
   const dedupedNormalized: string[] = [];
 
@@ -33,55 +40,32 @@ function deduplicateContent(text: string): string {
     }
   }
 
-  // Second pass: detect repeated multi-line blocks and keep only the last
-  const result: string[] = [];
-  let i = 0;
+  // Second pass: find meaningful lines and check for duplicates
+  // Keep track of seen meaningful content and only keep the last occurrence
+  const meaningfulContentLastIndex = new Map<string, number>();
 
-  while (i < dedupedLines.length) {
-    // Check if we have a repeating block starting here
-    let blockSize = 0;
-
-    // Try block sizes from 1 to 5 lines
-    for (let size = 1; size <= Math.min(5, Math.floor((dedupedLines.length - i) / 2)); size++) {
-      // Check if the next 'size' lines repeat (comparing trimmed content)
-      let isRepeating = true;
-      for (let k = 0; k < size; k++) {
-        if (i + size + k >= dedupedLines.length ||
-            dedupedNormalized[i + k] !== dedupedNormalized[i + size + k]) {
-          isRepeating = false;
-          break;
-        }
-      }
-      if (isRepeating) {
-        blockSize = size;
-      }
+  for (let i = 0; i < dedupedNormalized.length; i++) {
+    if (isMeaningfulLine(dedupedNormalized[i])) {
+      meaningfulContentLastIndex.set(dedupedNormalized[i], i);
     }
+  }
 
-    if (blockSize > 0) {
-      // Skip to the last occurrence of this repeating block
-      let j = i + blockSize;
-      while (j + blockSize <= dedupedLines.length) {
-        let stillRepeating = true;
-        for (let k = 0; k < blockSize; k++) {
-          if (dedupedNormalized[i + k] !== dedupedNormalized[j + k]) {
-            stillRepeating = false;
-            break;
-          }
-        }
-        if (stillRepeating) {
-          j += blockSize;
-        } else {
-          break;
-        }
+  // Build result, skipping earlier occurrences of repeated meaningful content
+  const seenMeaningful = new Set<string>();
+  const result: string[] = [];
+
+  // Process in reverse to keep last occurrence
+  for (let i = dedupedLines.length - 1; i >= 0; i--) {
+    const normalized = dedupedNormalized[i];
+    if (isMeaningfulLine(normalized)) {
+      if (!seenMeaningful.has(normalized)) {
+        seenMeaningful.add(normalized);
+        result.unshift(dedupedLines[i]);
       }
-      // Add the last occurrence of the block
-      for (let k = 0; k < blockSize; k++) {
-        result.push(dedupedLines[j - blockSize + k]);
-      }
-      i = j;
+      // Skip earlier occurrences
     } else {
-      result.push(dedupedLines[i]);
-      i++;
+      // Non-meaningful lines: keep them but avoid excessive consecutive dividers/blanks
+      result.unshift(dedupedLines[i]);
     }
   }
 
