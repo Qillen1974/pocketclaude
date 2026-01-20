@@ -10,18 +10,43 @@ interface TerminalProps {
 // Claude Code header pattern - indicates start of a screen frame
 const CLAUDE_HEADER = '▐▛███▜▌';
 
+// Remove duplicate lines/blocks from terminal output (compares stripped content)
+function deduplicateLines(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const strippedLine = stripAnsi(line);
+    result.push(line);
+
+    // Look for repeated identical lines (by stripped content) and skip duplicates
+    let j = i + 1;
+    while (j < lines.length && stripAnsi(lines[j]) === strippedLine && strippedLine.trim().length > 0) {
+      j++;
+    }
+    i = j > i + 1 ? j : i + 1;
+  }
+
+  return result.join('\n');
+}
+
 export function Terminal({ output }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
 
   // Only show the last "frame" - find the last occurrence of Claude Code header
   const displayOutput = useMemo(() => {
-    // Strip ANSI codes to find the header (raw output has codes between chars)
+    // Strip ANSI codes to find patterns (raw output has codes between chars)
     const stripped = stripAnsi(output);
+
+    // Find the Claude Code header
     const lastHeaderIndex = stripped.lastIndexOf(CLAUDE_HEADER);
+
+    let frameOutput = output;
 
     if (lastHeaderIndex > 0) {
       // Find corresponding position in original output
-      // Count characters in stripped text up to header, then find that position in original
       let strippedPos = 0;
       let originalPos = 0;
 
@@ -31,15 +56,12 @@ export function Terminal({ output }: TerminalProps) {
 
       // Build a mapping by walking through the original string
       while (strippedPos < lastHeaderIndex && originalPos < output.length) {
-        // Check if we're at an ANSI sequence
         ansiRegex.lastIndex = originalPos;
         match = ansiRegex.exec(output);
 
         if (match && match.index === originalPos) {
-          // Skip the ANSI sequence in original, don't advance stripped position
           originalPos = ansiRegex.lastIndex;
         } else {
-          // Regular character - advance both
           strippedPos++;
           originalPos++;
         }
@@ -50,9 +72,11 @@ export function Terminal({ output }: TerminalProps) {
       while (frameStart > 0 && output[frameStart - 1] !== '\n') {
         frameStart--;
       }
-      return output.substring(frameStart);
+      frameOutput = output.substring(frameStart);
     }
-    return output;
+
+    // Deduplicate repeated lines
+    return deduplicateLines(frameOutput);
   }, [output]);
 
   useEffect(() => {
