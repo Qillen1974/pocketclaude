@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import { ansiToHtml } from '@/lib/ansi';
+import { ansiToHtml, stripAnsi } from '@/lib/ansi';
 
 interface TerminalProps {
   output: string;
@@ -15,10 +15,38 @@ export function Terminal({ output }: TerminalProps) {
 
   // Only show the last "frame" - find the last occurrence of Claude Code header
   const displayOutput = useMemo(() => {
-    const lastHeaderIndex = output.lastIndexOf(CLAUDE_HEADER);
+    // Strip ANSI codes to find the header (raw output has codes between chars)
+    const stripped = stripAnsi(output);
+    const lastHeaderIndex = stripped.lastIndexOf(CLAUDE_HEADER);
+
     if (lastHeaderIndex > 0) {
-      // Find the start of the line containing the header (look for newline before it)
-      let frameStart = lastHeaderIndex;
+      // Find corresponding position in original output
+      // Count characters in stripped text up to header, then find that position in original
+      let strippedPos = 0;
+      let originalPos = 0;
+
+      // eslint-disable-next-line no-control-regex
+      const ansiRegex = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
+      let match;
+
+      // Build a mapping by walking through the original string
+      while (strippedPos < lastHeaderIndex && originalPos < output.length) {
+        // Check if we're at an ANSI sequence
+        ansiRegex.lastIndex = originalPos;
+        match = ansiRegex.exec(output);
+
+        if (match && match.index === originalPos) {
+          // Skip the ANSI sequence in original, don't advance stripped position
+          originalPos = ansiRegex.lastIndex;
+        } else {
+          // Regular character - advance both
+          strippedPos++;
+          originalPos++;
+        }
+      }
+
+      // Back up to start of line in original
+      let frameStart = originalPos;
       while (frameStart > 0 && output[frameStart - 1] !== '\n') {
         frameStart--;
       }
