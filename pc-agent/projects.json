@@ -1,9 +1,9 @@
 {
   "projects": [
     {
-      "id": "example-project",
-      "name": "Example Project",
-      "path": "C:\\Users\\charl\\projects\\example"
+      "id": "ai-helper",
+      "name": "AI Helper",
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\ai-helper"
     }
   ]
 }

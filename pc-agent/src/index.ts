@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,15 +9,14 @@ import { ReconnectManager } from './reconnect';
 const RELAY_URL = process.env.RELAY_URL;
 const RELAY_TOKEN = process.env.RELAY_TOKEN;
 
-if (!RELAY_URL) {
-  console.error('RELAY_URL environment variable is required');
+if (!RELAY_URL || !RELAY_TOKEN) {
+  console.error('RELAY_URL and RELAY_TOKEN environment variables are required');
   process.exit(1);
 }
 
-if (!RELAY_TOKEN) {
-  console.error('RELAY_TOKEN environment variable is required');
-  process.exit(1);
-}
+// TypeScript narrowing - these are now guaranteed to be strings
+const relayUrl: string = RELAY_URL;
+const relayToken: string = RELAY_TOKEN;
 
 // Load projects config
 function loadProjects(): ProjectConfig[] {
@@ -154,9 +154,9 @@ function handleCommand(command: CommandPayload): void {
 }
 
 function connect(): void {
-  console.log(`[Agent] Connecting to relay at ${RELAY_URL}`);
+  console.log(`[Agent] Connecting to relay at ${relayUrl}`);
 
-  ws = new WebSocket(RELAY_URL);
+  ws = new WebSocket(relayUrl);
 
   ws.on('open', () => {
     console.log('[Agent] Connected to relay');
@@ -165,7 +165,7 @@ function connect(): void {
     // Authenticate
     sendMessage({
       type: 'auth',
-      payload: { token: RELAY_TOKEN, role: 'agent' },
+      payload: { token: relayToken, role: 'agent' },
     });
 
     // Initialize session manager

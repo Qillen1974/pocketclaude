@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useRelay } from '@/context/RelayContext';
 
 const TOKEN_KEY = 'relay_token';
+const ENV_TOKEN = process.env.NEXT_PUBLIC_RELAY_TOKEN;
 
 export default function AuthPage() {
   const [token, setToken] = useState('');
@@ -13,11 +14,11 @@ export default function AuthPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check for saved token
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    if (savedToken) {
-      setToken(savedToken);
-      connect(savedToken);
+    // Priority: 1. Environment token, 2. Saved token in localStorage
+    const autoToken = ENV_TOKEN || localStorage.getItem(TOKEN_KEY);
+    if (autoToken) {
+      setToken(autoToken);
+      connect(autoToken);
     }
     setLoading(false);
   }, [connect]);
