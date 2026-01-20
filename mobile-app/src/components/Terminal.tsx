@@ -26,8 +26,14 @@ function deduplicateContent(text: string): string {
   const stripped = stripAnsi(text);
   const lines = text.split('\n');
   const strippedLines = stripped.split('\n');
-  // Normalize: trim and collapse multiple whitespace to single space
-  const normalizedLines = strippedLines.map(line => line.trim().replace(/\s+/g, ' '));
+  // Normalize: trim, collapse whitespace, normalize unicode
+  const normalizedLines = strippedLines.map(line =>
+    line
+      .normalize('NFKC')  // Normalize unicode variants
+      .trim()
+      .replace(/[\s\u00A0\u2000-\u200B\u2028\u2029\u3000]+/g, ' ')
+      .replace(/\s+/g, ' ')
+  );
 
   // First pass: remove consecutive identical lines
   const dedupedLines: string[] = [];
