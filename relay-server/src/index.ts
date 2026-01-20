@@ -14,7 +14,7 @@ if (!RELAY_TOKEN) {
 
 const connectionManager = new ConnectionManager();
 
-// Create HTTP server for health endpoint
+// Create HTTP server for health and admin endpoints
 const server = http.createServer((req, res) => {
   if (req.url === '/health' && req.method === 'GET') {
     const response: HealthResponse = {
@@ -24,6 +24,17 @@ const server = http.createServer((req, res) => {
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response));
+  } else if (req.url === '/admin/clear-agent' && req.method === 'POST') {
+    // Admin endpoint to clear stale agent connection
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${RELAY_TOKEN}`) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    connectionManager.forceDisconnectAgent();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Agent connection cleared' }));
   } else {
     res.writeHead(404);
     res.end('Not Found');

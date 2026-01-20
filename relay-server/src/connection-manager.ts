@@ -59,6 +59,23 @@ export class ConnectionManager {
     }
   }
 
+  forceDisconnectAgent(): void {
+    if (this.agent) {
+      console.log('[ConnectionManager] Force disconnecting agent');
+      try {
+        this.agent.ws.terminate();
+      } catch (err) {
+        // Ignore errors during termination
+      }
+      this.agent = null;
+      this.broadcastToClients({
+        type: 'status',
+        payload: { status: 'disconnected', data: { reason: 'agent_force_disconnected' } },
+        timestamp: Date.now(),
+      });
+    }
+  }
+
   getAgent(): WebSocket | null {
     return this.agent?.ws ?? null;
   }
