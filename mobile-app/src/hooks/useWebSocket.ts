@@ -17,6 +17,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const tokenRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Use ref to always call the latest onMessage callback (avoids stale closure)
+  const onMessageRef = useRef(options.onMessage);
+  onMessageRef.current = options.onMessage;
+
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
     setStatus(newStatus);
     options.onStatusChange?.(newStatus);
@@ -64,7 +68,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           }
         }
 
-        options.onMessage?.(message);
+        onMessageRef.current?.(message);
       } catch (err) {
         console.error('[WebSocket] Failed to parse message:', err);
       }
@@ -88,7 +92,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     ws.onerror = (err) => {
       console.error('[WebSocket] Error:', err);
     };
-  }, [updateStatus, options]);
+  }, [updateStatus]);
 
   const disconnect = useCallback(() => {
     tokenRef.current = null;
