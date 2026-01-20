@@ -109,7 +109,9 @@ export class SessionManager {
 
     session.lastActivity = Date.now();
     session.status = 'active';
-    session.pty.write(input);
+    // Append carriage return to submit the input (press Enter)
+    session.pty.write(input + '\r');
+    console.log(`[SessionManager] Sent input to session ${sessionId}: ${input.substring(0, 50)}...`);
     return true;
   }
 
