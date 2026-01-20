@@ -44,11 +44,34 @@ const RelayContext = createContext<RelayContextValue | null>(null);
 export function RelayProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
   const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+
+  // Buffer to store output that arrives before currentSessionId is set
+  const [outputBuffer, setOutputBuffer] = useState<Map<string, string>>(new Map());
+
+  // Custom setter that also flushes buffered output
+  const setCurrentSessionId = useCallback((sessionId: string | null) => {
+    console.log('[RelayContext] setCurrentSessionId called with:', sessionId);
+    setCurrentSessionIdState(sessionId);
+    if (sessionId) {
+      // Flush any buffered output for this session
+      setOutputBuffer(prev => {
+        const buffered = prev.get(sessionId);
+        if (buffered) {
+          console.log('[RelayContext] Flushing buffered output:', buffered.length, 'chars');
+          setTerminalOutput(buffered);
+          const newMap = new Map(prev);
+          newMap.delete(sessionId);
+          return newMap;
+        }
+        return prev;
+      });
+    }
+  }, []);
 
   const handleMessage = useCallback((message: Message) => {
     switch (message.type) {
@@ -110,6 +133,15 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
         });
         if (payload.sessionId === currentSessionId) {
           setTerminalOutput(prev => prev + payload.data);
+        } else if (currentSessionId === null && payload.sessionId) {
+          // Buffer output if currentSessionId not yet set (race condition)
+          console.log('[RelayContext] Buffering output for session:', payload.sessionId);
+          setOutputBuffer(prev => {
+            const newMap = new Map(prev);
+            const existing = newMap.get(payload.sessionId) || '';
+            newMap.set(payload.sessionId, existing + payload.data);
+            return newMap;
+          });
         }
         break;
       }
