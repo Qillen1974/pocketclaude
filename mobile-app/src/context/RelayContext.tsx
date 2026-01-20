@@ -91,7 +91,8 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
           case 'session_started': {
             const data = payload.data as { sessionId: string; projectId: string };
             console.log('[RelayContext] Session started:', data.sessionId);
-            setCurrentSessionId(data.sessionId);
+            // Don't set currentSessionId here - let the session page set it from URL
+            // This prevents race conditions where old session_started messages override the URL
             setTerminalOutput('');
             setSessions(prev => [...prev, {
               sessionId: data.sessionId,
