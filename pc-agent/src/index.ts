@@ -210,6 +210,35 @@ function handleCommand(command: CommandPayload): void {
       break;
     }
 
+    case 'get_last_session_output': {
+      if (!command.projectId) {
+        sendError('MISSING_PROJECT_ID', 'projectId is required');
+        return;
+      }
+
+      const output = historyManager.getLastSessionOutput(command.projectId);
+      sendStatus('last_session_output', { projectId: command.projectId, output });
+      break;
+    }
+
+    case 'keepalive': {
+      if (!command.sessionId) {
+        sendError('MISSING_SESSION_ID', 'sessionId is required');
+        return;
+      }
+
+      if (!sessionManager) {
+        sendError('NO_SESSION_MANAGER', 'Session manager not initialized');
+        return;
+      }
+
+      const success = sessionManager.keepalive(command.sessionId);
+      if (!success) {
+        sendError('SESSION_NOT_FOUND', `Session ${command.sessionId} not found`, command.sessionId);
+      }
+      break;
+    }
+
     case 'upload_file': {
       if (!command.sessionId) {
         sendError('MISSING_SESSION_ID', 'sessionId is required');

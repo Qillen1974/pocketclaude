@@ -17,7 +17,7 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'upload_file';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'get_last_session_output' | 'keepalive' | 'upload_file';
   projectId?: string;
   input?: string;
   sessionId?: string;
@@ -33,7 +33,7 @@ export interface OutputPayload {
 }
 
 export interface StatusPayload {
-  status: 'connected' | 'disconnected' | 'session_started' | 'session_closed' | 'projects_list' | 'sessions_list' | 'session_history' | 'file_uploaded';
+  status: 'connected' | 'disconnected' | 'session_started' | 'session_closed' | 'projects_list' | 'sessions_list' | 'session_history' | 'last_session_output' | 'file_uploaded';
   data?: unknown;
   sessionId?: string;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useRelay } from '@/context/RelayContext';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
@@ -8,10 +8,13 @@ import { Terminal } from '@/components/Terminal';
 import { InputBar } from '@/components/InputBar';
 import { QUICK_SESSION_PROJECT_ID } from '@/lib/types';
 
+const KEEPALIVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 export default function SessionPage() {
   const router = useRouter();
   const params = useParams();
   const sessionId = params.id as string;
+  const keepaliveRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     status,
@@ -27,6 +30,7 @@ export default function SessionPage() {
     clearError,
     uploadFile,
     uploadStatus,
+    sendKeepalive,
   } = useRelay();
 
   // Set session ID immediately on mount - this must happen before output arrives
@@ -36,6 +40,27 @@ export default function SessionPage() {
       setCurrentSessionId(sessionId);
     }
   }, [sessionId, setCurrentSessionId]);
+
+  // Send keepalive periodically to prevent session timeout
+  useEffect(() => {
+    if (sessionId && agentConnected) {
+      // Send initial keepalive
+      sendKeepalive(sessionId);
+
+      // Set up periodic keepalive
+      keepaliveRef.current = setInterval(() => {
+        console.log('[SessionPage] Sending keepalive for session:', sessionId);
+        sendKeepalive(sessionId);
+      }, KEEPALIVE_INTERVAL);
+
+      return () => {
+        if (keepaliveRef.current) {
+          clearInterval(keepaliveRef.current);
+          keepaliveRef.current = null;
+        }
+      };
+    }
+  }, [sessionId, agentConnected, sendKeepalive]);
 
   useEffect(() => {
     if (status === 'disconnected') {

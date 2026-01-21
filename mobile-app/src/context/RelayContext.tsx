@@ -23,6 +23,7 @@ interface RelayContextValue {
   terminalOutput: string;
   error: string | null;
   sessionHistory: SessionHistoryItem[];
+  lastSessionOutput: string | null;
   uploadStatus: 'idle' | 'uploading' | 'success' | 'error';
   connect: (token: string) => void;
   disconnect: () => void;
@@ -36,6 +37,9 @@ interface RelayContextValue {
   clearError: () => void;
   clearTerminal: () => void;
   getSessionHistory: (projectId: string) => void;
+  getLastSessionOutput: (projectId: string) => void;
+  clearLastSessionOutput: () => void;
+  sendKeepalive: (sessionId: string) => void;
   uploadFile: (fileName: string, fileContent: string, mimeType?: string) => void;
 }
 
@@ -48,6 +52,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
   const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
+  const [lastSessionOutput, setLastSessionOutput] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
 
   // Buffer to store output that arrives before currentSessionId is set
@@ -113,6 +118,11 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
           case 'session_history': {
             const data = payload.data as { projectId: string; history: SessionHistoryItem[] };
             setSessionHistory(data.history || []);
+            break;
+          }
+          case 'last_session_output': {
+            const data = payload.data as { projectId: string; output: string | null };
+            setLastSessionOutput(data.output);
             break;
           }
           case 'file_uploaded': {
@@ -213,6 +223,18 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     sendCommand({ command: 'get_session_history', projectId });
   }, [sendCommand]);
 
+  const getLastSessionOutput = useCallback((projectId: string) => {
+    sendCommand({ command: 'get_last_session_output', projectId });
+  }, [sendCommand]);
+
+  const clearLastSessionOutput = useCallback(() => {
+    setLastSessionOutput(null);
+  }, []);
+
+  const sendKeepalive = useCallback((sessionId: string) => {
+    sendCommand({ command: 'keepalive', sessionId });
+  }, [sendCommand]);
+
   const uploadFile = useCallback((fileName: string, fileContent: string, mimeType?: string) => {
     if (!currentSessionId) return;
     setUploadStatus('uploading');
@@ -243,6 +265,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       terminalOutput,
       error,
       sessionHistory,
+      lastSessionOutput,
       uploadStatus,
       connect,
       disconnect,
@@ -256,6 +279,9 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       clearError,
       clearTerminal,
       getSessionHistory,
+      getLastSessionOutput,
+      clearLastSessionOutput,
+      sendKeepalive,
       uploadFile,
     }}>
       {children}

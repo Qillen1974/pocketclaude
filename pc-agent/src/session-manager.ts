@@ -167,6 +167,17 @@ export class SessionManager {
     return session ? [...session.buffer] : [];
   }
 
+  // Update last activity timestamp to keep session alive
+  keepalive(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+    session.lastActivity = Date.now();
+    console.log(`[SessionManager] Keepalive received for session ${sessionId}`);
+    return true;
+  }
+
   closeAllSessions(): void {
     for (const sessionId of this.sessions.keys()) {
       this.closeSession(sessionId);

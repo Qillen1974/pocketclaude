@@ -16,6 +16,7 @@ export default function ProjectsPage() {
     projects,
     sessions,
     sessionHistory,
+    lastSessionOutput,
     startSession,
     startQuickSession,
     setCurrentSessionId,
@@ -23,6 +24,8 @@ export default function ProjectsPage() {
     error,
     clearError,
     getSessionHistory,
+    getLastSessionOutput,
+    clearLastSessionOutput,
   } = useRelay();
 
   useEffect(() => {
@@ -154,7 +157,12 @@ export default function ProjectsPage() {
       {showHistory && (
         <SessionHistory
           history={sessionHistory}
-          onClose={() => setShowHistory(false)}
+          lastSessionOutput={lastSessionOutput}
+          onClose={() => {
+            setShowHistory(false);
+            clearLastSessionOutput();
+          }}
+          onViewFullOutput={getLastSessionOutput}
         />
       )}
     </div>

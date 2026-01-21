@@ -36,9 +36,27 @@ function preprocessTerminal(text: string): string {
     .replace(/\x1b\[[0-9;]*[HfABCDGJKX]/g, '')
     // Strip other CSI sequences we don't render: ESC [ ... (various)
     .replace(/\x1b\[[0-9;]*[su<>]/g, '')
+    // Strip scroll region and other bracketed sequences
+    .replace(/\x1b\[[0-9;]*[rLMPST@]/g, '')
+    // Strip character set selection: ESC ( B, ESC ) 0, etc.
+    .replace(/\x1b[()\*+][0-9A-Za-z]/g, '')
+    // Strip application/normal keypad mode: ESC = and ESC >
+    .replace(/\x1b[=>]/g, '')
+    // Strip save/restore cursor: ESC 7 and ESC 8
+    .replace(/\x1b[78]/g, '')
+    // Strip status line sequences
+    .replace(/\x1b\[[0-9;]*q/gi, '')
+    // Strip bracketed paste mode markers
+    .replace(/\x1b\[\?200[04][hl]/g, '')
     // Strip incomplete/malformed sequences that lost the ESC character
     .replace(/\?\d+[hl]/g, '')
-    .replace(/\[\d*[ABCDGHX]/g, '');
+    .replace(/\[\d*[ABCDGHX]/g, '')
+    // Strip bell character
+    .replace(/\x07/g, '')
+    // Strip carriage return followed by spaces (cursor overwriting)
+    .replace(/\r +/g, '\r')
+    // Strip any remaining non-printable control chars except newline/tab
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F]/g, '');
 }
 
 export function ansiToHtml(text: string): string {
@@ -49,4 +67,135 @@ export function ansiToHtml(text: string): string {
 export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+}
+
+// Tool names that Claude Code uses
+const TOOL_PATTERNS = [
+  /^(Read|Edit|Write|Bash|Grep|Glob|Task|WebFetch|WebSearch|TodoWrite|NotebookEdit)/i,
+  /^(Reading|Editing|Writing|Running|Searching|Fetching|Globbing)/i,
+  /^\s*●\s+(Read|Edit|Write|Bash|Grep|Glob|Task)/i,
+  /^\s*[▸▹►▻→]\s+/,  // Arrow prefixed tool indicators
+];
+
+// Status and UI patterns to filter out
+const STATUS_PATTERNS = [
+  /^▐▛███▜▌/,  // Claude Code header
+  /^╭─+╮$/,    // Box drawing top
+  /^╰─+╯$/,    // Box drawing bottom
+  /^│\s*│$/,   // Empty box line
+  /^[─━═┄┈\-]{3,}$/,  // Divider lines
+  /^\s*\d+\s*│/,  // Line numbers (code display)
+  /^ctrl\+[a-z]/i,  // Keyboard shortcuts
+  /^\?\s+for shortcuts/,
+  /^>\s*$/,    // Empty prompt
+  /^\.{3,}$/,  // Ellipsis loading
+  /^\s*⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/,  // Spinner characters
+  /^\s*\[\s*\d+\/\d+\s*\]/,  // Progress indicators like [1/5]
+  /^Tokens:/i,  // Token count
+  /^Cost:/i,    // Cost display
+  /^\s*↳/,      // Sub-item indicator
+  /^\s*\(.*working.*\)/i,  // Working indicators
+  /^Auto-approved/i,  // Auto-approval messages
+  /^\s*Session:/i,  // Session info
+];
+
+// Patterns that indicate tool output (file contents, command output)
+const TOOL_OUTPUT_PATTERNS = [
+  /^\s+\d+[│|]\s/,  // File content with line numbers
+  /^[+\-]{3}\s+[ab]\//,  // Diff headers
+  /^@@.*@@/,  // Diff hunk markers
+  /^diff --git/,  // Git diff header
+  /^index [0-9a-f]+\.\.[0-9a-f]+/,  // Git index line
+];
+
+// Check if a line is a tool call or status indicator
+function isToolOrStatusLine(line: string): boolean {
+  const stripped = stripAnsi(line).trim();
+  if (!stripped) return false;
+
+  for (const pattern of [...TOOL_PATTERNS, ...STATUS_PATTERNS, ...TOOL_OUTPUT_PATTERNS]) {
+    if (pattern.test(stripped)) return true;
+  }
+  return false;
+}
+
+// Extract clean conversational content from Claude output
+export function extractCleanContent(text: string): string {
+  const stripped = stripAnsi(text);
+  const lines = stripped.split('\n');
+
+  const cleanLines: string[] = [];
+  let inToolBlock = false;
+  let inCodeBlock = false;
+  let consecutiveEmptyLines = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Track code blocks (should be preserved)
+    if (trimmed.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      cleanLines.push(line);
+      consecutiveEmptyLines = 0;
+      continue;
+    }
+
+    // Inside code block - preserve as-is
+    if (inCodeBlock) {
+      cleanLines.push(line);
+      consecutiveEmptyLines = 0;
+      continue;
+    }
+
+    // Detect tool block start
+    if (TOOL_PATTERNS.some(p => p.test(trimmed))) {
+      inToolBlock = true;
+      continue;
+    }
+
+    // Detect tool block end (empty line or new conversational content)
+    if (inToolBlock && (!trimmed || /^[A-Z][a-z]/.test(trimmed))) {
+      inToolBlock = false;
+    }
+
+    // Skip tool/status lines
+    if (isToolOrStatusLine(line)) {
+      continue;
+    }
+
+    // Skip tool block content
+    if (inToolBlock) {
+      continue;
+    }
+
+    // Handle empty lines - allow max 2 consecutive
+    if (!trimmed) {
+      consecutiveEmptyLines++;
+      if (consecutiveEmptyLines <= 2 && cleanLines.length > 0) {
+        cleanLines.push('');
+      }
+      continue;
+    }
+
+    consecutiveEmptyLines = 0;
+    cleanLines.push(line);
+  }
+
+  // Trim leading/trailing empty lines
+  while (cleanLines.length > 0 && !cleanLines[0].trim()) {
+    cleanLines.shift();
+  }
+  while (cleanLines.length > 0 && !cleanLines[cleanLines.length - 1].trim()) {
+    cleanLines.pop();
+  }
+
+  return cleanLines.join('\n');
+}
+
+// Check if content appears to be a question from Claude
+export function containsQuestion(text: string): boolean {
+  const stripped = stripAnsi(text);
+  // Look for question marks in conversational context
+  return /\?\s*$/.test(stripped) || /would you like/i.test(stripped) || /shall I/i.test(stripped);
 }

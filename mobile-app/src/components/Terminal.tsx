@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
-import { ansiToHtml, stripAnsi } from '@/lib/ansi';
+import { useEffect, useRef, useMemo, useState } from 'react';
+import { ansiToHtml, stripAnsi, extractCleanContent } from '@/lib/ansi';
 
 interface TerminalProps {
   output: string;
@@ -71,16 +71,17 @@ function deduplicateContent(text: string): string {
 
 export function Terminal({ output }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
+  const [cleanMode, setCleanMode] = useState(true);  // Default to clean mode
 
   // Only show the last "frame" - find the last occurrence of Claude Code header
-  const displayOutput = useMemo(() => {
+  const frameOutput = useMemo(() => {
     // Strip ANSI codes to find patterns (raw output has codes between chars)
     const stripped = stripAnsi(output);
 
     // Find the Claude Code header
     const lastHeaderIndex = stripped.lastIndexOf(CLAUDE_HEADER);
 
-    let frameOutput = output;
+    let result = output;
 
     if (lastHeaderIndex > 0) {
       // Find corresponding position in original output
@@ -109,12 +110,20 @@ export function Terminal({ output }: TerminalProps) {
       while (frameStart > 0 && output[frameStart - 1] !== '\n') {
         frameStart--;
       }
-      frameOutput = output.substring(frameStart);
+      result = output.substring(frameStart);
     }
 
     // Deduplicate repeated content blocks
-    return deduplicateContent(frameOutput);
+    return deduplicateContent(result);
   }, [output]);
+
+  // Apply clean mode filtering
+  const displayOutput = useMemo(() => {
+    if (cleanMode) {
+      return extractCleanContent(frameOutput);
+    }
+    return frameOutput;
+  }, [frameOutput, cleanMode]);
 
   useEffect(() => {
     if (terminalRef.current) {
@@ -122,17 +131,33 @@ export function Terminal({ output }: TerminalProps) {
     }
   }, [displayOutput]);
 
-  const html = ansiToHtml(displayOutput);
+  const html = cleanMode ? displayOutput : ansiToHtml(displayOutput);
 
   return (
-    <div
-      ref={terminalRef}
-      className="flex-1 bg-terminal-bg p-4 overflow-auto font-mono text-sm leading-relaxed"
-    >
-      <pre
-        className="text-terminal-text whitespace-pre-wrap break-words"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+    <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
+      {/* Mode toggle */}
+      <div className="flex items-center justify-end px-4 py-2 border-b border-gray-700 bg-gray-800/50">
+        <button
+          onClick={() => setCleanMode(!cleanMode)}
+          className={`px-3 py-1 text-xs rounded-full transition-colors ${
+            cleanMode
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+          }`}
+        >
+          {cleanMode ? 'Clean View' : 'Raw View'}
+        </button>
+      </div>
+      {/* Terminal content */}
+      <div
+        ref={terminalRef}
+        className="flex-1 p-4 overflow-auto font-mono text-sm leading-relaxed"
+      >
+        <pre
+          className="text-terminal-text whitespace-pre-wrap break-words"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
     </div>
   );
 }
