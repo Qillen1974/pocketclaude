@@ -126,20 +126,22 @@ function handleCommand(command: CommandPayload): void {
         project = foundProject;
       }
 
-      const sessionId = sessionManager.startSession(project);
+      // Get previous context to inject into the new session
+      const previousContext = historyManager.getContextSummary(project.id);
+      const hasPreviousContext = previousContext.length > 0;
+
+      // Start session with previous context (if any)
+      const sessionId = sessionManager.startSession(project, hasPreviousContext ? previousContext : undefined);
 
       // Start history recording
       sessionProjectMap.set(sessionId, { projectId: project.id, projectName: project.name });
       historyManager.startSession(sessionId, project.id, project.name);
 
-      // Get previous context if available
-      const previousContext = historyManager.getContextSummary(project.id);
-
       sendStatus('session_started', {
         sessionId,
         projectId: project.id,
         isQuickSession: project.id === QUICK_SESSION_PROJECT_ID,
-        hasPreviousContext: previousContext.length > 0
+        hasPreviousContext
       }, sessionId);
       break;
     }

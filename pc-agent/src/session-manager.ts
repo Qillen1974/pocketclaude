@@ -37,7 +37,7 @@ export class SessionManager {
     }
   }
 
-  startSession(project: ProjectConfig): string {
+  startSession(project: ProjectConfig, previousContext?: string): string {
     const sessionId = uuidv4();
 
     // Determine shell based on platform
@@ -100,6 +100,23 @@ export class SessionManager {
     setTimeout(() => {
       if (this.sessions.has(sessionId)) {
         ptyProcess.write(`${claudeCmd}\r`);
+
+        // If there's previous context, send it after Claude Code initializes
+        if (previousContext && previousContext.trim()) {
+          setTimeout(() => {
+            if (this.sessions.has(sessionId)) {
+              const contextMessage = `[CONTEXT FROM PREVIOUS SESSION - Please review and continue where we left off]\n\n${previousContext}\n\n[END OF PREVIOUS CONTEXT - You may now continue assisting the user]`;
+              console.log(`[SessionManager] Injecting previous context (${contextMessage.length} chars)`);
+              ptyProcess.write(contextMessage + '\r');
+              // Send extra Enter to ensure submission
+              setTimeout(() => {
+                if (this.sessions.has(sessionId)) {
+                  ptyProcess.write('\r');
+                }
+              }, 100);
+            }
+          }, 3000); // Wait 3 seconds for Claude Code to fully initialize
+        }
       }
     }, 500);
 
