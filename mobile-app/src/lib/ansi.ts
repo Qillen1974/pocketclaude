@@ -32,35 +32,39 @@ function deduplicateRepeatedPatterns(text: string): string {
     // Skip short lines
     if (line.length < 20) return line;
 
+    // First, normalize whitespace - collapse multiple spaces/tabs to single space
+    // This helps match patterns that have varying whitespace padding
+    let normalized = line.replace(/[ \t]+/g, ' ');
+
     // Try to find repeated substrings by testing different lengths
     // Start with longer patterns to avoid over-matching
-    for (let patternLen = Math.min(100, Math.floor(line.length / 2)); patternLen >= 5; patternLen--) {
+    for (let patternLen = Math.min(80, Math.floor(normalized.length / 2)); patternLen >= 5; patternLen--) {
       // Try each starting position
-      for (let start = 0; start <= line.length - patternLen * 2; start++) {
-        const candidate = line.substring(start, start + patternLen);
+      for (let start = 0; start <= normalized.length - patternLen * 2; start++) {
+        const candidate = normalized.substring(start, start + patternLen);
         // Skip if pattern is mostly whitespace
         if (candidate.trim().length < 3) continue;
 
         // Count consecutive occurrences
         let count = 1;
         let pos = start + patternLen;
-        while (pos + patternLen <= line.length && line.substring(pos, pos + patternLen) === candidate) {
+        while (pos + patternLen <= normalized.length && normalized.substring(pos, pos + patternLen) === candidate) {
           count++;
           pos += patternLen;
         }
 
         // If pattern repeats 3+ times, remove duplicates
         if (count >= 3) {
-          const before = line.substring(0, start);
-          const after = line.substring(start + patternLen * count);
-          line = before + candidate + after;
+          const before = normalized.substring(0, start);
+          const after = normalized.substring(start + patternLen * count);
+          normalized = before + candidate + after;
           // Restart search on modified line
-          patternLen = Math.min(100, Math.floor(line.length / 2)) + 1;
+          patternLen = Math.min(80, Math.floor(normalized.length / 2)) + 1;
           break;
         }
       }
     }
-    return line;
+    return normalized;
   });
   return processedLines.join('\n');
 }
@@ -182,6 +186,13 @@ const STATUS_PATTERNS = [
   /esc to interrupt/i,  // Interrupt hint
   /for more options/i,  // Options hint
   /Try "/i,  // Suggestion prefix
+  /CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
+  /Previous Session Context/i,  // Session context header
+  /End of Previous Context/i,  // Session context footer
+  /END OF PREVIOUS CONTEXT/i,  // Session context footer variant
+  /You may now continue assisting/i,  // Context injection footer
+  /Please review and continue/i,  // Context injection instruction
+  /Session from \d/,  // Session timestamp
 ];
 
 // Patterns that indicate tool output (file contents, command output)
