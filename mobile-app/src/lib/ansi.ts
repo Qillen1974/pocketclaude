@@ -170,7 +170,8 @@ const STATUS_PATTERNS = [
   /^\?\s+for shortcuts/,
   /^>\s*$/,    // Empty prompt
   /^\.{3,}$/,  // Ellipsis loading
-  /^\s*⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/,  // Spinner characters
+  /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·●*]/,  // Spinner and status characters
+  /Brewing|Waiting|Kneading|Misting|Seasoning|Cooked|Dilly-dallying|Hullaballooing/i,  // Claude status words
   /^\s*\[\s*\d+\/\d+\s*\]/,  // Progress indicators like [1/5]
   /^Tokens:/i,  // Token count
   /^Cost:/i,    // Cost display
@@ -186,6 +187,15 @@ const STATUS_PATTERNS = [
   /esc to interrupt/i,  // Interrupt hint
   /^\s*for more options/i,  // Options hint (at start)
   /^>\s*Try "/i,  // Suggestion prefix (at prompt)
+  /^\s*⎿/,  // Tool output indicator
+  /Tip:\s*Hit/i,  // Tip messages
+  /ctrl\+[a-z]\s+to\s+/i,  // Ctrl shortcut hints
+  /shift\+tab/i,  // Shift+tab hint
+  /Read\([^)]+\)/,  // Read tool indicator
+  /Glob\([^)]+\)/,  // Glob tool indicator
+  /Bash\([^)]+\)/,  // Bash tool indicator
+  /\+\d+\s+more tool/i,  // More tools indicator
+  /run in background/i,  // Background hint
   /\[CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
   /=== Previous Session Context/i,  // Session context header
   /=== End of Previous Context/i,  // Session context footer
