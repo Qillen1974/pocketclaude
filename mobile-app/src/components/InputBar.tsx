@@ -23,6 +23,35 @@ export function InputBar({ onSubmit, onUpload, uploadStatus = 'idle', disabled, 
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Arrow keys - send escape sequences for terminal navigation
+    // These are used for selecting options in Claude's prompts
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      onSubmit('\x1b[A');
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      onSubmit('\x1b[B');
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      onSubmit('\x1b[D');
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      onSubmit('\x1b[C');
+      return;
+    }
+    // Escape key - useful for canceling operations in Claude
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onSubmit('\x1b');
+      return;
+    }
+    // Enter key - submit the input
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
