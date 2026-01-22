@@ -30,9 +30,14 @@ function deduplicateRepeatedPatterns(text: string): string {
   const lines = text.split('\n');
   const processedLines = lines.map(line => {
     // Look for patterns that repeat 3+ times consecutively
-    // Match a chunk of text followed by the same chunk repeated
-    const repeatedPattern = /(.{4,50}?)\1{2,}/g;
-    return line.replace(repeatedPattern, '$1');
+    // Use multiple pattern lengths to catch different repetitions
+    let result = line;
+    // Try patterns from 5 to 100 characters
+    for (const len of [100, 80, 60, 50, 40, 30, 20, 15, 10, 5]) {
+      const pattern = new RegExp(`(.{${len},${len + 20}}?)\\1{2,}`, 'g');
+      result = result.replace(pattern, '$1');
+    }
+    return result;
   });
   return processedLines.join('\n');
 }
@@ -92,7 +97,8 @@ function preprocessTerminal(text: string): string {
     .replace(/\?\d+[hl]/g, '')
     .replace(/\[\d*[ABCDGHX]/g, '')
     // Strip OSC remnants where ESC] was stripped but content remains (0;Title pattern)
-    .replace(/0;[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✳✻✽✶✢·●▐▛█▜▘▝][^\n\x07]*/g, '')
+    // Match 0; followed by any non-digit, non-semicolon character (valid OSC would be 0;digits;)
+    .replace(/0;[^\d;\n][^\n]*/g, '')
     // Strip bell character
     .replace(/\x07/g, '')
     // Strip any remaining carriage returns (already processed above)
