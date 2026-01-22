@@ -180,19 +180,17 @@ const STATUS_PATTERNS = [
   /^\s*Session:/i,  // Session info
   /^0;/,  // OSC remnants (window title sequences)
   /↵\s*send/i,  // Send button UI artifact
-  /https:\/\/docs\.anthropic\.com/,  // Anthropic docs URL (UI hint)
-  /claude install/i,  // Installation hint
-  /^\s*▘|▝|▛|▜/,  // Box drawing fragments
+  /^\s*https:\/\/docs\.anthropic\.com/,  // Anthropic docs URL (UI hint)
+  /^.*claude install.*$/i,  // Installation hint (whole line)
+  /^\s*[▘▝▛▜]/,  // Box drawing fragments
   /esc to interrupt/i,  // Interrupt hint
-  /for more options/i,  // Options hint
-  /Try "/i,  // Suggestion prefix
-  /CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
-  /Previous Session Context/i,  // Session context header
-  /End of Previous Context/i,  // Session context footer
-  /END OF PREVIOUS CONTEXT/i,  // Session context footer variant
-  /You may now continue assisting/i,  // Context injection footer
-  /Please review and continue/i,  // Context injection instruction
-  /Session from \d/,  // Session timestamp
+  /^\s*for more options/i,  // Options hint (at start)
+  /^>\s*Try "/i,  // Suggestion prefix (at prompt)
+  /^\s*\[CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
+  /^=== Previous Session Context/i,  // Session context header
+  /^=== End of Previous Context/i,  // Session context footer
+  /^\[END OF PREVIOUS CONTEXT/i,  // Session context footer variant
+  /^---\s*Session from \d/,  // Session timestamp line
 ];
 
 // Patterns that indicate tool output (file contents, command output)
@@ -288,7 +286,14 @@ export function extractCleanContent(text: string): string {
     cleanLines.pop();
   }
 
-  return cleanLines.join('\n');
+  const result = cleanLines.join('\n');
+
+  // If no clean content found, return a placeholder
+  if (!result.trim()) {
+    return 'Waiting for Claude response...\n\n(Switch to Raw View to see full terminal output)';
+  }
+
+  return result;
 }
 
 // Check if content appears to be a question from Claude
