@@ -27,7 +27,7 @@ const converter = new AnsiToHtml({
 
 // Process carriage returns properly - \r means "return to start of line"
 // so text after \r should replace text before it (used for spinners, progress bars)
-function processCarriageReturns(text: string): string {
+export function processCarriageReturns(text: string): string {
   // Split into lines (preserving \n)
   const lines = text.split('\n');
   const processedLines = lines.map(line => {

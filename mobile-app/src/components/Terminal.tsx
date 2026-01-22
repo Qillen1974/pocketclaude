@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { ansiToHtml, stripAnsi, extractCleanContent } from '@/lib/ansi';
+import { ansiToHtml, stripAnsi, extractCleanContent, processCarriageReturns } from '@/lib/ansi';
 
 interface TerminalProps {
   output: string;
@@ -23,8 +23,10 @@ function isMeaningfulLine(line: string): boolean {
 
 // Remove duplicate content from terminal output
 function deduplicateContent(text: string): string {
+  // First, process carriage returns to handle spinner/progress overwrites
+  const crProcessed = processCarriageReturns(text);
   // Normalize line endings and split
-  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const lines = crProcessed.replace(/\r\n?/g, '\n').split('\n');
 
   // Normalize each line for comparison (strip ANSI per-line to maintain alignment)
   const normalizedLines = lines.map(line =>
