@@ -126,6 +126,15 @@ function handleCommand(command: CommandPayload): void {
         project = foundProject;
       }
 
+      // Close any existing sessions for this project to prevent accumulation
+      const existingSessions = sessionManager.listSessions().filter(s => s.projectId === project.id);
+      for (const existingSession of existingSessions) {
+        console.log(`[Agent] Closing existing session ${existingSession.sessionId} for project ${project.id}`);
+        historyManager.endSession(existingSession.sessionId);
+        sessionProjectMap.delete(existingSession.sessionId);
+        sessionManager.closeSession(existingSession.sessionId);
+      }
+
       // Get previous context to inject into the new session
       const previousContext = historyManager.getContextSummary(project.id);
       const hasPreviousContext = previousContext.length > 0;
