@@ -304,7 +304,7 @@ function connect(): void {
 
   ws.on('open', () => {
     console.log('[Agent] Connected to relay');
-    reconnectManager.reset();
+    // Don't reset reconnect counter here - wait until authentication succeeds
 
     // Authenticate
     sendMessage({
@@ -330,8 +330,21 @@ function connect(): void {
 
     if (message.type === 'status') {
       console.log('[Agent] Status:', message.payload);
+      // Reset reconnect counter only after successful authentication
+      const payload = message.payload as { status?: string; data?: { role?: string } };
+      if (payload.status === 'connected' && payload.data?.role === 'agent') {
+        reconnectManager.reset();
+        console.log('[Agent] Authentication successful, reconnect counter reset');
+      }
     } else if (message.type === 'error') {
       console.error('[Agent] Error:', message.payload);
+      // If another agent is already connected, don't keep retrying aggressively
+      const errorPayload = message.payload as { code?: string };
+      if (errorPayload.code === 'AGENT_EXISTS') {
+        console.log('[Agent] Another agent is already connected. Will retry with longer backoff.');
+        // Force a longer delay by advancing the attempt counter
+        for (let i = 0; i < 5; i++) reconnectManager.getNextDelay();
+      }
     } else if (message.type === 'command') {
       handleCommand(message.payload as CommandPayload);
     }

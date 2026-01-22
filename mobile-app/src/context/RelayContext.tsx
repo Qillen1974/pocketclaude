@@ -247,6 +247,14 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     });
   }, [sendCommand, currentSessionId]);
 
+  // Clear stale sessions when agent disconnects or connection lost
+  // This prevents orphaned session references from accumulating
+  useEffect(() => {
+    if (!agentConnected || status === 'disconnected') {
+      setSessions([]);
+    }
+  }, [agentConnected, status]);
+
   // Auto-fetch projects when authenticated and agent connected
   useEffect(() => {
     if (status === 'authenticated' && agentConnected) {
