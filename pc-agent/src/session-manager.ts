@@ -3,7 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { Session, SessionInfo, ProjectConfig } from './types';
 
 const BUFFER_MAX_LINES = 100;
-const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+// Session idle timeout disabled - sessions stay open indefinitely like a regular terminal
+// Set to 0 to disable, or a positive value (in ms) to enable timeout
+const IDLE_TIMEOUT = 0; // Disabled - was 30 * 60 * 1000 (30 minutes)
 const IDLE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 export type OutputCallback = (sessionId: string, data: string) => void;
@@ -28,6 +30,9 @@ export class SessionManager {
   }
 
   private checkIdleSessions(): void {
+    // Skip if timeout is disabled
+    if (IDLE_TIMEOUT <= 0) return;
+
     const now = Date.now();
     for (const [sessionId, session] of this.sessions) {
       if (now - session.lastActivity > IDLE_TIMEOUT) {
