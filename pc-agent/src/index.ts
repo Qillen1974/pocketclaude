@@ -8,6 +8,16 @@ import { SessionManager } from './session-manager';
 import { ReconnectManager } from './reconnect';
 import { HistoryManager } from './history-manager';
 
+// Global error handlers to prevent process from crashing
+process.on('uncaughtException', (err) => {
+  console.error('[Agent] Uncaught exception (keeping alive):', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Agent] Unhandled promise rejection (keeping alive):', reason);
+});
+
 const RELAY_URL = process.env.RELAY_URL;
 const RELAY_TOKEN = process.env.RELAY_TOKEN;
 
@@ -414,3 +424,10 @@ process.on('SIGTERM', () => {
 
 // Start connection
 connect();
+
+// Periodic status log (every 5 minutes) to show agent is alive
+setInterval(() => {
+  const sessionCount = sessionManager ? sessionManager.listSessions().length : 0;
+  const connected = ws && ws.readyState === WebSocket.OPEN;
+  console.log(`[Agent] Status: ${connected ? 'connected' : 'disconnected'}, sessions: ${sessionCount}, uptime: ${Math.round(process.uptime() / 60)}min`);
+}, 5 * 60 * 1000);
