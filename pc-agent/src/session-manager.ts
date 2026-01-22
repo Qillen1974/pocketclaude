@@ -137,18 +137,28 @@ export class SessionManager {
 
     session.lastActivity = Date.now();
     session.status = 'active';
-    // Send input with Enter to submit
-    // Claude Code might need Escape first (to ensure we're in command mode) then the text and Enter
-    session.pty.write(input + '\r');
-    console.log(`[SessionManager] Sent input to session ${sessionId}: ${input.substring(0, 50)}...`);
 
-    // Send an extra Enter after a brief delay to ensure submission
-    setTimeout(() => {
-      if (this.sessions.has(sessionId)) {
-        session.pty.write('\r');
-        console.log(`[SessionManager] Sent extra Enter to session ${sessionId}`);
-      }
-    }, 100);
+    // Check if input is an escape sequence (arrow keys, Escape, etc.)
+    // These should be sent raw without appending Enter
+    const isEscapeSequence = input.startsWith('\x1b');
+
+    if (isEscapeSequence) {
+      // Send escape sequences raw - no Enter appended
+      session.pty.write(input);
+      console.log(`[SessionManager] Sent escape sequence to session ${sessionId}`);
+    } else {
+      // Regular text input - send with Enter to submit
+      session.pty.write(input + '\r');
+      console.log(`[SessionManager] Sent input to session ${sessionId}: ${input.substring(0, 50)}...`);
+
+      // Send an extra Enter after a brief delay to ensure submission
+      setTimeout(() => {
+        if (this.sessions.has(sessionId)) {
+          session.pty.write('\r');
+          console.log(`[SessionManager] Sent extra Enter to session ${sessionId}`);
+        }
+      }, 100);
+    }
 
     return true;
   }
