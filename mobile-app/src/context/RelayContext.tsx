@@ -99,12 +99,17 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
             // Don't set currentSessionId here - let the session page set it from URL
             // This prevents race conditions where old session_started messages override the URL
             setTerminalOutput('');
-            setSessions(prev => [...prev, {
-              sessionId: data.sessionId,
-              projectId: data.projectId,
-              status: 'active',
-              lastActivity: Date.now(),
-            }]);
+            // Remove any existing sessions for this project, then add the new one
+            // This ensures only one session per project and removes stale sessions
+            setSessions(prev => [
+              ...prev.filter(s => s.projectId !== data.projectId),
+              {
+                sessionId: data.sessionId,
+                projectId: data.projectId,
+                status: 'active',
+                lastActivity: Date.now(),
+              }
+            ]);
             break;
           }
           case 'session_closed': {
