@@ -53,8 +53,8 @@ function deduplicateRepeatedPatterns(text: string): string {
           pos += patternLen;
         }
 
-        // If pattern repeats 3+ times, remove duplicates
-        if (count >= 3) {
+        // If pattern repeats 2+ times, remove duplicates
+        if (count >= 2) {
           const before = normalized.substring(0, start);
           const after = normalized.substring(start + patternLen * count);
           normalized = before + candidate + after;
@@ -164,7 +164,7 @@ const STATUS_PATTERNS = [
   /^╭─+╮$/,    // Box drawing top
   /^╰─+╯$/,    // Box drawing bottom
   /^│\s*│$/,   // Empty box line
-  /^[─━═┄┈\-]{3,}$/,  // Divider lines
+  /^[─━═┄┈\-]{3,}/,  // Divider lines (may have trailing chars like >)
   /^\s*\d+\s*│/,  // Line numbers (code display)
   /^ctrl\+[a-z]/i,  // Keyboard shortcuts
   /^\?\s+for shortcuts/,
@@ -186,11 +186,11 @@ const STATUS_PATTERNS = [
   /esc to interrupt/i,  // Interrupt hint
   /^\s*for more options/i,  // Options hint (at start)
   /^>\s*Try "/i,  // Suggestion prefix (at prompt)
-  /^\s*\[CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
-  /^=== Previous Session Context/i,  // Session context header
-  /^=== End of Previous Context/i,  // Session context footer
-  /^\[END OF PREVIOUS CONTEXT/i,  // Session context footer variant
-  /^---\s*Session from \d/,  // Session timestamp line
+  /\[CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
+  /=== Previous Session Context/i,  // Session context header
+  /=== End of Previous Context/i,  // Session context footer
+  /\[END OF PREVIOUS CONTEXT/i,  // Session context footer variant
+  /---\s*Session from \d/,  // Session timestamp line
 ];
 
 // Patterns that indicate tool output (file contents, command output)
