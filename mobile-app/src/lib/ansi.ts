@@ -25,6 +25,18 @@ const converter = new AnsiToHtml({
   },
 });
 
+// Deduplicate repeated patterns within a line (e.g., "text text text" -> "text")
+function deduplicateRepeatedPatterns(text: string): string {
+  const lines = text.split('\n');
+  const processedLines = lines.map(line => {
+    // Look for patterns that repeat 3+ times consecutively
+    // Match a chunk of text followed by the same chunk repeated
+    const repeatedPattern = /(.{4,50}?)\1{2,}/g;
+    return line.replace(repeatedPattern, '$1');
+  });
+  return processedLines.join('\n');
+}
+
 // Process carriage returns properly - \r means "return to start of line"
 // so text after \r should replace text before it (used for spinners, progress bars)
 export function processCarriageReturns(text: string): string {
@@ -53,7 +65,9 @@ export function processCarriageReturns(text: string): string {
 function preprocessTerminal(text: string): string {
   // First, handle carriage returns to prevent spinner/progress duplication
   const crProcessed = processCarriageReturns(text);
-  return crProcessed
+  // Then deduplicate repeated patterns within lines
+  const deduped = deduplicateRepeatedPatterns(crProcessed);
+  return deduped
     // Strip OSC sequences (window title, etc): ESC ] ... (BEL or ESC \)
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
     // Strip DEC Private Mode sequences: ESC [ ? Pm h/l
@@ -77,10 +91,14 @@ function preprocessTerminal(text: string): string {
     // Strip incomplete/malformed sequences that lost the ESC character
     .replace(/\?\d+[hl]/g, '')
     .replace(/\[\d*[ABCDGHX]/g, '')
+    // Strip OSC remnants where ESC] was stripped but content remains (0;Title pattern)
+    .replace(/0;[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✳✻✽✶✢·●▐▛█▜▘▝][^\n\x07]*/g, '')
     // Strip bell character
     .replace(/\x07/g, '')
     // Strip any remaining carriage returns (already processed above)
     .replace(/\r/g, '')
+    // Strip repeated "↵ send" UI artifacts
+    .replace(/(↵ send)+/g, '')
     // Strip any remaining non-printable control chars except newline/tab
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F]/g, '');
 }
