@@ -29,15 +29,38 @@ const converter = new AnsiToHtml({
 function deduplicateRepeatedPatterns(text: string): string {
   const lines = text.split('\n');
   const processedLines = lines.map(line => {
-    // Look for patterns that repeat 3+ times consecutively
-    // Use multiple pattern lengths to catch different repetitions
-    let result = line;
-    // Try patterns from 5 to 100 characters
-    for (const len of [100, 80, 60, 50, 40, 30, 20, 15, 10, 5]) {
-      const pattern = new RegExp(`(.{${len},${len + 20}}?)\\1{2,}`, 'g');
-      result = result.replace(pattern, '$1');
+    // Skip short lines
+    if (line.length < 20) return line;
+
+    // Try to find repeated substrings by testing different lengths
+    // Start with longer patterns to avoid over-matching
+    for (let patternLen = Math.min(100, Math.floor(line.length / 2)); patternLen >= 5; patternLen--) {
+      // Try each starting position
+      for (let start = 0; start <= line.length - patternLen * 2; start++) {
+        const candidate = line.substring(start, start + patternLen);
+        // Skip if pattern is mostly whitespace
+        if (candidate.trim().length < 3) continue;
+
+        // Count consecutive occurrences
+        let count = 1;
+        let pos = start + patternLen;
+        while (pos + patternLen <= line.length && line.substring(pos, pos + patternLen) === candidate) {
+          count++;
+          pos += patternLen;
+        }
+
+        // If pattern repeats 3+ times, remove duplicates
+        if (count >= 3) {
+          const before = line.substring(0, start);
+          const after = line.substring(start + patternLen * count);
+          line = before + candidate + after;
+          // Restart search on modified line
+          patternLen = Math.min(100, Math.floor(line.length / 2)) + 1;
+          break;
+        }
+      }
     }
-    return result;
+    return line;
   });
   return processedLines.join('\n');
 }
