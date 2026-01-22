@@ -25,9 +25,35 @@ const converter = new AnsiToHtml({
   },
 });
 
+// Process carriage returns properly - \r means "return to start of line"
+// so text after \r should replace text before it (used for spinners, progress bars)
+function processCarriageReturns(text: string): string {
+  // Split into lines (preserving \n)
+  const lines = text.split('\n');
+  const processedLines = lines.map(line => {
+    // If line contains \r (but not at the very end), process overwrites
+    if (line.includes('\r')) {
+      // Split by \r and take the last non-empty segment
+      // This simulates cursor returning to start of line and overwriting
+      const segments = line.split('\r');
+      // Find the last segment that has content
+      for (let i = segments.length - 1; i >= 0; i--) {
+        if (segments[i].length > 0) {
+          return segments[i];
+        }
+      }
+      return '';
+    }
+    return line;
+  });
+  return processedLines.join('\n');
+}
+
 // Strip terminal control sequences that ansi-to-html doesn't handle
 function preprocessTerminal(text: string): string {
-  return text
+  // First, handle carriage returns to prevent spinner/progress duplication
+  const crProcessed = processCarriageReturns(text);
+  return crProcessed
     // Strip OSC sequences (window title, etc): ESC ] ... (BEL or ESC \)
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
     // Strip DEC Private Mode sequences: ESC [ ? Pm h/l
@@ -53,8 +79,8 @@ function preprocessTerminal(text: string): string {
     .replace(/\[\d*[ABCDGHX]/g, '')
     // Strip bell character
     .replace(/\x07/g, '')
-    // Strip carriage return followed by spaces (cursor overwriting)
-    .replace(/\r +/g, '\r')
+    // Strip any remaining carriage returns (already processed above)
+    .replace(/\r/g, '')
     // Strip any remaining non-printable control chars except newline/tab
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F]/g, '');
 }
@@ -65,8 +91,11 @@ export function ansiToHtml(text: string): string {
 }
 
 export function stripAnsi(text: string): string {
+  // First process carriage returns to handle spinner/progress overwrites
+  const crProcessed = processCarriageReturns(text);
+  // Then strip ANSI escape sequences
   // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+  return crProcessed.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '').replace(/\r/g, '');
 }
 
 // Tool names that Claude Code uses
