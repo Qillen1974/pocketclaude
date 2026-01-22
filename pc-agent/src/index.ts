@@ -321,11 +321,16 @@ function connect(): void {
       payload: { token: relayToken, role: 'agent' },
     });
 
-    // Initialize session manager
-    sessionManager = new SessionManager(
-      (sessionId, data) => sendOutput(sessionId, data),
-      (sessionId) => sendStatus('session_closed', { sessionId }, sessionId)
-    );
+    // Initialize session manager only if it doesn't exist
+    // This preserves sessions across reconnections
+    if (!sessionManager) {
+      sessionManager = new SessionManager(
+        (sessionId, data) => sendOutput(sessionId, data),
+        (sessionId) => sendStatus('session_closed', { sessionId }, sessionId)
+      );
+    } else {
+      console.log(`[Agent] Reconnected with ${sessionManager.listSessions().length} existing session(s)`);
+    }
   });
 
   ws.on('message', (data: WebSocket.RawData) => {
@@ -363,9 +368,13 @@ function connect(): void {
     console.log(`[Agent] Disconnected: ${code} ${reason}`);
     ws = null;
 
+    // Don't destroy sessionManager - keep sessions alive across reconnections
+    // Sessions will continue running and resume output when reconnected
     if (sessionManager) {
-      sessionManager.destroy();
-      sessionManager = null;
+      const sessionCount = sessionManager.listSessions().length;
+      if (sessionCount > 0) {
+        console.log(`[Agent] Keeping ${sessionCount} session(s) alive during reconnection`);
+      }
     }
 
     reconnectManager.scheduleReconnect(connect);
