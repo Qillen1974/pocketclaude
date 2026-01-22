@@ -67,7 +67,8 @@ export function processCarriageReturns(text: string): string {
 }
 
 // Strip terminal control sequences that ansi-to-html doesn't handle
-function preprocessTerminal(text: string): string {
+// Exported so it can be used by extractCleanContent as well
+export function preprocessTerminal(text: string): string {
   // First, handle carriage returns to prevent spinner/progress duplication
   const crProcessed = processCarriageReturns(text);
   // Then deduplicate repeated patterns within lines
@@ -150,6 +151,14 @@ const STATUS_PATTERNS = [
   /^\s*\(.*working.*\)/i,  // Working indicators
   /^Auto-approved/i,  // Auto-approval messages
   /^\s*Session:/i,  // Session info
+  /^0;/,  // OSC remnants (window title sequences)
+  /↵\s*send/i,  // Send button UI artifact
+  /https:\/\/docs\.anthropic\.com/,  // Anthropic docs URL (UI hint)
+  /claude install/i,  // Installation hint
+  /^\s*▘|▝|▛|▜/,  // Box drawing fragments
+  /esc to interrupt/i,  // Interrupt hint
+  /for more options/i,  // Options hint
+  /Try "/i,  // Suggestion prefix
 ];
 
 // Patterns that indicate tool output (file contents, command output)
@@ -174,7 +183,9 @@ function isToolOrStatusLine(line: string): boolean {
 
 // Extract clean conversational content from Claude output
 export function extractCleanContent(text: string): string {
-  const stripped = stripAnsi(text);
+  // First apply full preprocessing (deduplication, OSC stripping, etc.)
+  const preprocessed = preprocessTerminal(text);
+  const stripped = stripAnsi(preprocessed);
   const lines = stripped.split('\n');
 
   const cleanLines: string[] = [];
