@@ -21,8 +21,15 @@ export class ConnectionManager {
   }
 
   registerAgent(ws: WebSocket): boolean {
-    if (this.hasAgent()) {
-      return false;
+    // If there's an existing agent, replace it (likely stale connection)
+    if (this.agent) {
+      console.log('[ConnectionManager] Replacing existing agent connection (likely stale)');
+      try {
+        this.agent.ws.terminate();
+      } catch (err) {
+        // Ignore errors during termination
+      }
+      this.agent = null;
     }
     this.agent = {
       ws,
