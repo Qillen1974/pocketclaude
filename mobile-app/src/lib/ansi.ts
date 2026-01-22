@@ -201,6 +201,18 @@ const STATUS_PATTERNS = [
   /=== End of Previous Context/i,  // Session context footer
   /\[END OF PREVIOUS CONTEXT/i,  // Session context footer variant
   /---\s*Session from \d/,  // Session timestamp line
+  // Menu navigation UI patterns
+  /Enter to select/i,  // Selection hint
+  /Tab\/Arrow keys to navigate/i,  // Navigation hint
+  /Arrow keys to navigate/i,  // Navigation hint variant
+  /Esc to cancel/i,  // Cancel hint
+  /^>\s*\d+\./,  // Menu option indicator like ">1."
+  /^\s*\d+\.\s+\w+.*\n.*\d+\.\s+\w+/,  // Multiple menu options on same line
+  /^>?[A-Za-z]+ MCP\s+[A-Za-z]+ MCP/,  // Repeated MCP options (menu redraw)
+  /^>?Not sure\s+(Type something|Not sure)/i,  // Repeated menu options
+  /^>?Type something\s+(Not sure|Type something)/i,  // Repeated menu options
+  /^>?Playwright.*Puppeteer/i,  // Menu options running together
+  /^>?Puppeteer.*Playwright/i,  // Menu options running together
 ];
 
 // Patterns that indicate tool output (file contents, command output)
