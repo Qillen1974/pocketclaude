@@ -30,63 +30,28 @@ function deduplicateRepeatedPatterns(text: string): string {
   const lines = text.split('\n');
   const processedLines = lines.map(line => {
     // Skip short lines
-    if (line.length < 20) return line;
+    if (line.length < 30) return line;
 
-    // First, normalize whitespace - collapse multiple spaces/tabs to single space
-    let normalized = line.replace(/[ \t]+/g, ' ').trim();
+    // Normalize multiple spaces/tabs to single space (preserve the line otherwise)
+    let result = line.replace(/[ \t]+/g, ' ');
 
-    // Approach 1: Use regex to find phrases that repeat (word sequences)
-    // This catches "can you help me with can you help me with" style repetitions
+    // Simple approach: find repeated phrases using regex
+    // Match phrase (3+ words) followed by same phrase
     let changed = true;
-    while (changed) {
+    let iterations = 0;
+    while (changed && iterations < 5) {
       changed = false;
-      // Match 3+ word phrases that repeat immediately
-      const phraseMatch = normalized.match(/\b((?:\w+\s+){2,8}\w+)\s+\1/i);
-      if (phraseMatch) {
-        normalized = normalized.replace(new RegExp(`(${escapeRegex(phraseMatch[1])})(\\s+\\1)+`, 'gi'), '$1');
+      iterations++;
+
+      // Match sequences like "word word word word word word" where first half equals second half
+      const match = result.match(/\b((?:\S+\s+){2,10}\S+)(\s+\1)+/i);
+      if (match) {
+        result = result.replace(new RegExp('(' + escapeRegex(match[1]) + ')(\\s+\\1)+', 'gi'), '$1');
         changed = true;
-        continue;
-      }
-      // Match 2-word phrases that repeat
-      const shortMatch = normalized.match(/\b(\w+\s+\w+)\s+\1/i);
-      if (shortMatch) {
-        normalized = normalized.replace(new RegExp(`(${escapeRegex(shortMatch[1])})(\\s+\\1)+`, 'gi'), '$1');
-        changed = true;
-        continue;
       }
     }
 
-    // Approach 2: Check for longer exact substring repetitions
-    for (let patternLen = Math.min(80, Math.floor(normalized.length / 2)); patternLen >= 10; patternLen--) {
-      for (let start = 0; start <= normalized.length - patternLen * 2; start++) {
-        const candidate = normalized.substring(start, start + patternLen).trim();
-        if (candidate.length < 5) continue;
-
-        // Count consecutive occurrences (allowing some whitespace flexibility)
-        let count = 1;
-        let pos = start + patternLen;
-        while (pos < normalized.length) {
-          // Skip whitespace
-          while (pos < normalized.length && /\s/.test(normalized[pos])) pos++;
-          const nextChunk = normalized.substring(pos, pos + candidate.length);
-          if (nextChunk === candidate || nextChunk.trim() === candidate) {
-            count++;
-            pos += candidate.length;
-          } else {
-            break;
-          }
-        }
-
-        if (count >= 2) {
-          const before = normalized.substring(0, start);
-          const after = normalized.substring(pos).trim();
-          normalized = (before + candidate + ' ' + after).replace(/\s+/g, ' ').trim();
-          patternLen = Math.min(80, Math.floor(normalized.length / 2)) + 1;
-          break;
-        }
-      }
-    }
-    return normalized;
+    return result;
   });
   return processedLines.join('\n');
 }
