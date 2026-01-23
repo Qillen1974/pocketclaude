@@ -76,24 +76,51 @@ function deduplicateRepeatedPatterns(text: string): string {
   const lines = despacedText.split('\n');
   const processedLines = lines.map(line => {
     // Skip short lines
-    if (line.length < 30) return line;
+    if (line.length < 20) return line;
 
-    // Normalize multiple spaces/tabs to single space (preserve the line otherwise)
-    let result = line.replace(/[ \t]+/g, ' ');
+    // Normalize multiple spaces/tabs to single space
+    let result = line.replace(/[ \t]+/g, ' ').trim();
 
-    // Simple approach: find repeated phrases using regex
-    // Match phrase (3+ words) followed by same phrase
+    // Aggressive phrase deduplication - try different phrase lengths
     let changed = true;
     let iterations = 0;
-    while (changed && iterations < 5) {
+    while (changed && iterations < 10) {
       changed = false;
       iterations++;
 
-      // Match sequences like "word word word word word word" where first half equals second half
-      const match = result.match(/\b((?:\S+\s+){2,10}\S+)(\s+\1)+/i);
-      if (match) {
-        result = result.replace(new RegExp('(' + escapeRegex(match[1]) + ')(\\s+\\1)+', 'gi'), '$1');
-        changed = true;
+      // Try to find repeated sequences by splitting into words
+      const words = result.split(/\s+/);
+      if (words.length < 4) continue;
+
+      // Try phrase lengths from 2 to 10 words
+      for (let phraseLen = Math.min(10, Math.floor(words.length / 2)); phraseLen >= 2; phraseLen--) {
+        for (let start = 0; start <= words.length - phraseLen * 2; start++) {
+          const phrase = words.slice(start, start + phraseLen).join(' ');
+
+          // Check if the same phrase repeats immediately after
+          let repeatCount = 1;
+          let pos = start + phraseLen;
+          while (pos + phraseLen <= words.length) {
+            const nextPhrase = words.slice(pos, pos + phraseLen).join(' ');
+            if (nextPhrase.toLowerCase() === phrase.toLowerCase()) {
+              repeatCount++;
+              pos += phraseLen;
+            } else {
+              break;
+            }
+          }
+
+          // If phrase repeats, remove duplicates
+          if (repeatCount >= 2) {
+            const before = words.slice(0, start);
+            const after = words.slice(start + phraseLen * repeatCount);
+            const newWords = [...before, ...words.slice(start, start + phraseLen), ...after];
+            result = newWords.join(' ');
+            changed = true;
+            break;
+          }
+        }
+        if (changed) break;
       }
     }
 
@@ -276,14 +303,16 @@ function isToolOrStatusLine(line: string): boolean {
 // Strip trailing status indicators from a line while preserving content
 function stripTrailingStatus(line: string): string {
   return line
-    // Remove trailing spinner + status like "· Spelunking… (esc to interrupt · thinking)"
-    .replace(/[·•]\s*\w+…?\s*\(esc to interrupt[^)]*\)\s*$/i, '')
+    // Remove trailing spinner + status like "· Hyperspacing… (esc to interrupt · thinking)  >"
+    .replace(/[·•]\s*\w+…?\s*\([^)]*\)\s*>?\s*$/i, '')
     // Remove trailing "? for shortcuts"
     .replace(/\?\s*for shortcuts\s*$/i, '')
     // Remove trailing ctrl hints
     .replace(/ctrl\+[a-z]\s+to\s+\w+\s*$/i, '')
     // Remove trailing spinner characters
     .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·]+\s*$/g, '')
+    // Remove trailing prompt markers
+    .replace(/\s*>\s*$/g, '')
     .trim();
 }
 
