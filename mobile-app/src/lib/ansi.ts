@@ -33,32 +33,54 @@ function deduplicateRepeatedPatterns(text: string): string {
     if (line.length < 20) return line;
 
     // First, normalize whitespace - collapse multiple spaces/tabs to single space
-    // This helps match patterns that have varying whitespace padding
-    let normalized = line.replace(/[ \t]+/g, ' ');
+    let normalized = line.replace(/[ \t]+/g, ' ').trim();
 
-    // Try to find repeated substrings by testing different lengths
-    // Start with longer patterns to avoid over-matching
-    for (let patternLen = Math.min(80, Math.floor(normalized.length / 2)); patternLen >= 5; patternLen--) {
-      // Try each starting position
+    // Approach 1: Use regex to find phrases that repeat (word sequences)
+    // This catches "can you help me with can you help me with" style repetitions
+    let changed = true;
+    while (changed) {
+      changed = false;
+      // Match 3+ word phrases that repeat immediately
+      const phraseMatch = normalized.match(/\b((?:\w+\s+){2,8}\w+)\s+\1/i);
+      if (phraseMatch) {
+        normalized = normalized.replace(new RegExp(`(${escapeRegex(phraseMatch[1])})(\\s+\\1)+`, 'gi'), '$1');
+        changed = true;
+        continue;
+      }
+      // Match 2-word phrases that repeat
+      const shortMatch = normalized.match(/\b(\w+\s+\w+)\s+\1/i);
+      if (shortMatch) {
+        normalized = normalized.replace(new RegExp(`(${escapeRegex(shortMatch[1])})(\\s+\\1)+`, 'gi'), '$1');
+        changed = true;
+        continue;
+      }
+    }
+
+    // Approach 2: Check for longer exact substring repetitions
+    for (let patternLen = Math.min(80, Math.floor(normalized.length / 2)); patternLen >= 10; patternLen--) {
       for (let start = 0; start <= normalized.length - patternLen * 2; start++) {
-        const candidate = normalized.substring(start, start + patternLen);
-        // Skip if pattern is mostly whitespace
-        if (candidate.trim().length < 3) continue;
+        const candidate = normalized.substring(start, start + patternLen).trim();
+        if (candidate.length < 5) continue;
 
-        // Count consecutive occurrences
+        // Count consecutive occurrences (allowing some whitespace flexibility)
         let count = 1;
         let pos = start + patternLen;
-        while (pos + patternLen <= normalized.length && normalized.substring(pos, pos + patternLen) === candidate) {
-          count++;
-          pos += patternLen;
+        while (pos < normalized.length) {
+          // Skip whitespace
+          while (pos < normalized.length && /\s/.test(normalized[pos])) pos++;
+          const nextChunk = normalized.substring(pos, pos + candidate.length);
+          if (nextChunk === candidate || nextChunk.trim() === candidate) {
+            count++;
+            pos += candidate.length;
+          } else {
+            break;
+          }
         }
 
-        // If pattern repeats 2+ times, remove duplicates
         if (count >= 2) {
           const before = normalized.substring(0, start);
-          const after = normalized.substring(start + patternLen * count);
-          normalized = before + candidate + after;
-          // Restart search on modified line
+          const after = normalized.substring(pos).trim();
+          normalized = (before + candidate + ' ' + after).replace(/\s+/g, ' ').trim();
           patternLen = Math.min(80, Math.floor(normalized.length / 2)) + 1;
           break;
         }
@@ -67,6 +89,11 @@ function deduplicateRepeatedPatterns(text: string): string {
     return normalized;
   });
   return processedLines.join('\n');
+}
+
+// Helper to escape regex special characters
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Process carriage returns properly - \r means "return to start of line"
@@ -308,7 +335,31 @@ export function extractCleanContent(text: string): string {
     cleanLines.pop();
   }
 
-  const result = cleanLines.join('\n');
+  // Remove duplicate lines - keep only the last occurrence of each unique line
+  const seenLines = new Map<string, number>();
+  for (let i = 0; i < cleanLines.length; i++) {
+    const normalized = cleanLines[i].trim().toLowerCase();
+    if (normalized.length > 10) {  // Only dedupe substantial lines
+      seenLines.set(normalized, i);
+    }
+  }
+  const dedupedLines = cleanLines.filter((line, index) => {
+    const normalized = line.trim().toLowerCase();
+    if (normalized.length <= 10) return true;  // Keep short lines
+    return seenLines.get(normalized) === index;  // Keep only last occurrence
+  });
+
+  // Also remove consecutive duplicate lines (case-insensitive)
+  const finalLines: string[] = [];
+  for (const line of dedupedLines) {
+    const normalized = line.trim().toLowerCase();
+    const lastNormalized = finalLines.length > 0 ? finalLines[finalLines.length - 1].trim().toLowerCase() : '';
+    if (normalized !== lastNormalized || normalized.length === 0) {
+      finalLines.push(line);
+    }
+  }
+
+  const result = finalLines.join('\n');
 
   // If no clean content found, return a placeholder
   if (!result.trim()) {
