@@ -25,9 +25,55 @@ const converter = new AnsiToHtml({
   },
 });
 
+// Check if a string looks like concatenated words (no spaces but multiple "words")
+function looksLikeConcatenatedText(text: string): boolean {
+  const trimmed = text.trim();
+  // Must be at least 20 chars with no spaces
+  if (trimmed.length < 20 || trimmed.includes(' ')) return false;
+  // Must have lowercase letters
+  if (!/[a-z]/.test(trimmed)) return false;
+  // Check for camelCase-like patterns (lowercase followed by uppercase)
+  // or multiple word-like segments
+  const wordBoundaries = trimmed.match(/[a-z][A-Z]|[a-zA-Z][.?!,][a-zA-Z]/g);
+  return wordBoundaries !== null && wordBoundaries.length >= 2;
+}
+
+// Remove a concatenated version if a spaced version exists
+function removeSpacelessDuplicates(text: string): string {
+  const lines = text.split('\n');
+  const spacedVersions = new Set<string>();
+
+  // First pass: collect properly spaced lines (normalized)
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.includes(' ') && trimmed.length > 15) {
+      // Normalize: remove all spaces and lowercase for comparison
+      const normalized = trimmed.replace(/\s+/g, '').toLowerCase();
+      spacedVersions.add(normalized);
+    }
+  }
+
+  // Second pass: filter out concatenated versions if spaced version exists
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (looksLikeConcatenatedText(trimmed)) {
+      const normalized = trimmed.toLowerCase();
+      if (spacedVersions.has(normalized)) {
+        return false; // Remove this line, spaced version exists
+      }
+    }
+    return true;
+  });
+
+  return filteredLines.join('\n');
+}
+
 // Deduplicate repeated patterns within a line (e.g., "text text text" -> "text")
 function deduplicateRepeatedPatterns(text: string): string {
-  const lines = text.split('\n');
+  // First remove spaceless duplicates
+  const despacedText = removeSpacelessDuplicates(text);
+
+  const lines = despacedText.split('\n');
   const processedLines = lines.map(line => {
     // Skip short lines
     if (line.length < 30) return line;
