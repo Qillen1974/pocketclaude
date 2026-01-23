@@ -1,165 +1,156 @@
 'use client';
 
-import { useEffect, useRef, useMemo, useState } from 'react';
-import { ansiToHtml, stripAnsi, extractCleanContent, processCarriageReturns } from '@/lib/ansi';
+import { useEffect, useRef, useState } from 'react';
+import type { Terminal as XTerminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
 
 interface TerminalProps {
   output: string;
 }
 
-// Claude Code header pattern - indicates start of a screen frame
-const CLAUDE_HEADER = '▐▛███▜▌';
-
-// Check if a line is "meaningful" (not just whitespace, dividers, or common UI elements)
-function isMeaningfulLine(line: string): boolean {
-  const trimmed = line.trim();
-  if (!trimmed) return false;
-  // Skip divider lines (all dashes/boxes)
-  if (/^[─━═┄┈\-]+$/.test(trimmed)) return false;
-  // Skip common UI hints
-  if (trimmed.startsWith('ctrl+') || trimmed === '? for shortcuts') return false;
-  return true;
-}
-
-// Remove duplicate content from terminal output
-function deduplicateContent(text: string): string {
-  // First, process carriage returns to handle spinner/progress overwrites
-  const crProcessed = processCarriageReturns(text);
-  // Normalize line endings and split
-  const lines = crProcessed.replace(/\r\n?/g, '\n').split('\n');
-
-  // Normalize each line for comparison (strip ANSI per-line to maintain alignment)
-  const normalizedLines = lines.map(line =>
-    stripAnsi(line)
-      .normalize('NFKC')
-      .trim()
-      .replace(/[\s\u00A0\u2000-\u200B\u2028\u2029\u3000]+/g, ' ')
-      .replace(/\s+/g, ' ')
-  );
-
-  // First pass: remove consecutive identical lines
-  const dedupedLines: string[] = [];
-  const dedupedNormalized: string[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const normalized = normalizedLines[i];
-    if (i === 0 || normalized !== dedupedNormalized[dedupedNormalized.length - 1] || normalized === '') {
-      dedupedLines.push(lines[i]);
-      dedupedNormalized.push(normalized);
-    }
-  }
-
-  // Second pass: for any non-empty content that appears multiple times, keep only the last
-  const lastOccurrence = new Map<string, number>();
-  for (let i = 0; i < dedupedNormalized.length; i++) {
-    const norm = dedupedNormalized[i];
-    if (norm && norm.length > 0) {
-      lastOccurrence.set(norm, i);
-    }
-  }
-
-  // Build result - skip lines that appear again later (unless they're empty/whitespace-only)
-  const result: string[] = [];
-  for (let i = 0; i < dedupedLines.length; i++) {
-    const norm = dedupedNormalized[i];
-    // Keep if: empty line, OR this is the last occurrence of this content
-    if (!norm || norm.length === 0 || lastOccurrence.get(norm) === i) {
-      result.push(dedupedLines[i]);
-    }
-  }
-
-  return result.join('\n');
-}
-
 export function Terminal({ output }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const [cleanMode, setCleanMode] = useState(true);  // Default to clean mode
+  const xtermRef = useRef<XTerminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const lastOutputLengthRef = useRef(0);
+  const [isReady, setIsReady] = useState(false);
 
-  // Only show the last "frame" - find the last occurrence of Claude Code header
-  const frameOutput = useMemo(() => {
-    // Strip ANSI codes to find patterns (raw output has codes between chars)
-    const stripped = stripAnsi(output);
-
-    // Find the Claude Code header
-    const lastHeaderIndex = stripped.lastIndexOf(CLAUDE_HEADER);
-
-    let result = output;
-
-    if (lastHeaderIndex > 0) {
-      // Find corresponding position in original output
-      let strippedPos = 0;
-      let originalPos = 0;
-
-      // eslint-disable-next-line no-control-regex
-      const ansiRegex = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
-      let match;
-
-      // Build a mapping by walking through the original string
-      while (strippedPos < lastHeaderIndex && originalPos < output.length) {
-        ansiRegex.lastIndex = originalPos;
-        match = ansiRegex.exec(output);
-
-        if (match && match.index === originalPos) {
-          originalPos = ansiRegex.lastIndex;
-        } else {
-          strippedPos++;
-          originalPos++;
-        }
-      }
-
-      // Back up to start of line in original
-      let frameStart = originalPos;
-      while (frameStart > 0 && output[frameStart - 1] !== '\n') {
-        frameStart--;
-      }
-      result = output.substring(frameStart);
-    }
-
-    // Deduplicate repeated content blocks
-    return deduplicateContent(result);
-  }, [output]);
-
-  // Apply clean mode filtering
-  const displayOutput = useMemo(() => {
-    if (cleanMode) {
-      return extractCleanContent(frameOutput);
-    }
-    return frameOutput;
-  }, [frameOutput, cleanMode]);
-
+  // Initialize xterm.js
   useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [displayOutput]);
+    let mounted = true;
 
-  const html = cleanMode ? displayOutput : ansiToHtml(displayOutput);
+    const initTerminal = async () => {
+      if (!terminalRef.current || xtermRef.current) return;
+
+      // Dynamic import for client-side only
+      const { Terminal: XTerm } = await import('@xterm/xterm');
+      const { FitAddon } = await import('@xterm/addon-fit');
+      const { WebLinksAddon } = await import('@xterm/addon-web-links');
+
+      // CSS is imported in layout.tsx or globals.css
+
+      if (!mounted || !terminalRef.current) return;
+
+      const term = new XTerm({
+        theme: {
+          background: '#1e1e1e',
+          foreground: '#d4d4d4',
+          cursor: '#d4d4d4',
+          cursorAccent: '#1e1e1e',
+          black: '#000000',
+          red: '#f44747',
+          green: '#4ec9b0',
+          yellow: '#dcdcaa',
+          blue: '#569cd6',
+          magenta: '#c586c0',
+          cyan: '#9cdcfe',
+          white: '#d4d4d4',
+          brightBlack: '#808080',
+          brightRed: '#f44747',
+          brightGreen: '#4ec9b0',
+          brightYellow: '#dcdcaa',
+          brightBlue: '#569cd6',
+          brightMagenta: '#c586c0',
+          brightCyan: '#9cdcfe',
+          brightWhite: '#ffffff',
+        },
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        fontSize: 14,
+        lineHeight: 1.2,
+        cursorBlink: false,
+        cursorStyle: 'block',
+        scrollback: 5000,
+        convertEol: true,
+      });
+
+      const fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon();
+
+      term.loadAddon(fitAddon);
+      term.loadAddon(webLinksAddon);
+
+      term.open(terminalRef.current);
+      fitAddon.fit();
+
+      xtermRef.current = term;
+      fitAddonRef.current = fitAddon;
+      lastOutputLengthRef.current = 0;
+
+      setIsReady(true);
+
+      // Handle resize
+      const handleResize = () => {
+        if (fitAddonRef.current) {
+          fitAddonRef.current.fit();
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // ResizeObserver for container size changes
+      const resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(terminalRef.current);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        resizeObserver.disconnect();
+      };
+    };
+
+    initTerminal();
+
+    return () => {
+      mounted = false;
+      if (xtermRef.current) {
+        xtermRef.current.dispose();
+        xtermRef.current = null;
+      }
+    };
+  }, []);
+
+  // Write new output to terminal
+  useEffect(() => {
+    if (!xtermRef.current || !isReady) return;
+
+    const term = xtermRef.current;
+
+    // Only write new content (incremental updates)
+    if (output.length > lastOutputLengthRef.current) {
+      const newContent = output.substring(lastOutputLengthRef.current);
+      term.write(newContent);
+      lastOutputLengthRef.current = output.length;
+    } else if (output.length < lastOutputLengthRef.current) {
+      // Output was reset (new session or cleared)
+      term.clear();
+      term.write(output);
+      lastOutputLengthRef.current = output.length;
+    }
+  }, [output, isReady]);
+
+  // Refit on ready
+  useEffect(() => {
+    if (isReady && fitAddonRef.current) {
+      // Small delay to ensure container is sized
+      setTimeout(() => {
+        fitAddonRef.current?.fit();
+      }, 100);
+    }
+  }, [isReady]);
 
   return (
-    <div className="flex-1 flex flex-col bg-terminal-bg overflow-hidden">
-      {/* Mode toggle */}
-      <div className="flex items-center justify-end px-4 py-2 border-b border-gray-700 bg-gray-800/50">
-        <button
-          onClick={() => setCleanMode(!cleanMode)}
-          className={`px-3 py-1 text-xs rounded-full transition-colors ${
-            cleanMode
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-          }`}
-        >
-          {cleanMode ? 'Clean View' : 'Raw View'}
-        </button>
-      </div>
-      {/* Terminal content */}
+    <div className="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden">
       <div
         ref={terminalRef}
-        className="flex-1 p-4 overflow-auto font-mono text-sm leading-relaxed"
-      >
-        <pre
-          className="text-terminal-text whitespace-pre-wrap break-words"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      </div>
+        className="flex-1 p-2"
+        style={{ minHeight: '200px' }}
+      />
+      {!isReady && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+          Loading terminal...
+        </div>
+      )}
     </div>
   );
 }
