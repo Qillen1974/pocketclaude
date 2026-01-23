@@ -69,6 +69,14 @@ export default function SessionPage() {
     }
   }, [status, router]);
 
+  // Redirect to projects if session no longer exists (e.g., SESSION_NOT_FOUND error)
+  useEffect(() => {
+    if (currentSessionId === null && sessionId && status === 'authenticated') {
+      // Session was cleared (likely due to SESSION_NOT_FOUND) - redirect
+      router.push('/projects');
+    }
+  }, [currentSessionId, sessionId, status, router]);
+
   const handleBack = () => {
     router.push('/projects');
   };

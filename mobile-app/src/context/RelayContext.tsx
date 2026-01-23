@@ -175,6 +175,13 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       case 'error': {
         const payload = message.payload as ErrorPayload;
         setError(`${payload.code}: ${payload.message}`);
+        // Handle session not found - remove stale session from list
+        if (payload.code === 'SESSION_NOT_FOUND' && message.sessionId) {
+          setSessions(prev => prev.filter(s => s.sessionId !== message.sessionId));
+          if (currentSessionId === message.sessionId) {
+            setCurrentSessionId(null);
+          }
+        }
         // Reset upload status on error
         if (payload.code === 'UPLOAD_FAILED' || payload.code === 'MISSING_FILE_DATA') {
           setUploadStatus('error');
