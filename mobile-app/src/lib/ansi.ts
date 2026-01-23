@@ -207,7 +207,8 @@ const STATUS_PATTERNS = [
   /^\?\s+for shortcuts/,
   /^>\s*$/,    // Empty prompt
   /^\.{3,}$/,  // Ellipsis loading
-  /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·●]/,  // Spinner and status characters (NOT * which is markdown)
+  /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·](?!\w)/,  // Spinner chars NOT followed by word (excludes ●Response)
+  /^\s*●\s*$/,  // ● alone on a line (status indicator, not response)
   /Brewing|Waiting|Kneading|Misting|Seasoning|Cooked|Dilly-dallying|Hullaballooing/i,  // Claude status words
   /^\s*\[\s*\d+\/\d+\s*\]/,  // Progress indicators like [1/5]
   /^Tokens:/i,  // Token count
