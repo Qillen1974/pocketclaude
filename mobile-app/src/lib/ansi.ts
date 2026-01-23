@@ -222,7 +222,7 @@ const STATUS_PATTERNS = [
   /^\s*https:\/\/docs\.anthropic\.com/,  // Anthropic docs URL (UI hint)
   /^.*claude install.*$/i,  // Installation hint (whole line)
   /^\s*[▘▝▛▜]/,  // Box drawing fragments
-  /esc to interrupt/i,  // Interrupt hint
+  /^\s*\(?esc to interrupt/i,  // Interrupt hint (at start of line)
   /^\s*for more options/i,  // Options hint (at start)
   /^>\s*Try "/i,  // Suggestion prefix (at prompt)
   /^\s*⎿/,  // Tool output indicator
@@ -273,12 +273,27 @@ function isToolOrStatusLine(line: string): boolean {
   return false;
 }
 
+// Strip trailing status indicators from a line while preserving content
+function stripTrailingStatus(line: string): string {
+  return line
+    // Remove trailing spinner + status like "· Spelunking… (esc to interrupt · thinking)"
+    .replace(/[·•]\s*\w+…?\s*\(esc to interrupt[^)]*\)\s*$/i, '')
+    // Remove trailing "? for shortcuts"
+    .replace(/\?\s*for shortcuts\s*$/i, '')
+    // Remove trailing ctrl hints
+    .replace(/ctrl\+[a-z]\s+to\s+\w+\s*$/i, '')
+    // Remove trailing spinner characters
+    .replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·]+\s*$/g, '')
+    .trim();
+}
+
 // Extract clean conversational content from Claude output
 export function extractCleanContent(text: string): string {
   // First apply full preprocessing (deduplication, OSC stripping, etc.)
   const preprocessed = preprocessTerminal(text);
   const stripped = stripAnsi(preprocessed);
-  const lines = stripped.split('\n');
+  // Strip trailing status from each line before further processing
+  const lines = stripped.split('\n').map(line => stripTrailingStatus(line));
 
   const cleanLines: string[] = [];
   let inToolBlock = false;
