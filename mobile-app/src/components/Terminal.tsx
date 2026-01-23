@@ -14,95 +14,134 @@ export function Terminal({ output }: TerminalProps) {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastOutputLengthRef = useRef(0);
   const [isReady, setIsReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize xterm.js
   useEffect(() => {
     let mounted = true;
+    let cleanupFn: (() => void) | undefined;
 
     const initTerminal = async () => {
-      if (!terminalRef.current || xtermRef.current) return;
-
-      // Dynamic import for client-side only
-      const { Terminal: XTerm } = await import('@xterm/xterm');
-      const { FitAddon } = await import('@xterm/addon-fit');
-      const { WebLinksAddon } = await import('@xterm/addon-web-links');
-
-      // CSS is imported in layout.tsx or globals.css
-
-      if (!mounted || !terminalRef.current) return;
-
-      const term = new XTerm({
-        theme: {
-          background: '#1e1e1e',
-          foreground: '#d4d4d4',
-          cursor: '#d4d4d4',
-          cursorAccent: '#1e1e1e',
-          black: '#000000',
-          red: '#f44747',
-          green: '#4ec9b0',
-          yellow: '#dcdcaa',
-          blue: '#569cd6',
-          magenta: '#c586c0',
-          cyan: '#9cdcfe',
-          white: '#d4d4d4',
-          brightBlack: '#808080',
-          brightRed: '#f44747',
-          brightGreen: '#4ec9b0',
-          brightYellow: '#dcdcaa',
-          brightBlue: '#569cd6',
-          brightMagenta: '#c586c0',
-          brightCyan: '#9cdcfe',
-          brightWhite: '#ffffff',
-        },
-        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-        fontSize: 14,
-        lineHeight: 1.2,
-        cursorBlink: false,
-        cursorStyle: 'block',
-        scrollback: 5000,
-        convertEol: true,
-      });
-
-      const fitAddon = new FitAddon();
-      const webLinksAddon = new WebLinksAddon();
-
-      term.loadAddon(fitAddon);
-      term.loadAddon(webLinksAddon);
-
-      term.open(terminalRef.current);
-      fitAddon.fit();
-
-      xtermRef.current = term;
-      fitAddonRef.current = fitAddon;
-      lastOutputLengthRef.current = 0;
-
-      setIsReady(true);
-
-      // Handle resize
-      const handleResize = () => {
-        if (fitAddonRef.current) {
-          fitAddonRef.current.fit();
+      try {
+        if (!terminalRef.current) {
+          console.log('[Terminal] Waiting for ref...');
+          return;
         }
-      };
 
-      window.addEventListener('resize', handleResize);
+        if (xtermRef.current) {
+          console.log('[Terminal] Already initialized');
+          return;
+        }
 
-      // ResizeObserver for container size changes
-      const resizeObserver = new ResizeObserver(() => {
-        handleResize();
-      });
-      resizeObserver.observe(terminalRef.current);
+        console.log('[Terminal] Initializing xterm.js...');
 
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        resizeObserver.disconnect();
-      };
+        // Dynamic import for client-side only
+        const { Terminal: XTerm } = await import('@xterm/xterm');
+        const { FitAddon } = await import('@xterm/addon-fit');
+
+        if (!mounted) {
+          console.log('[Terminal] Component unmounted during init');
+          return;
+        }
+
+        if (!terminalRef.current) {
+          console.log('[Terminal] Ref lost during init');
+          return;
+        }
+
+        console.log('[Terminal] Creating terminal instance...');
+
+        const term = new XTerm({
+          theme: {
+            background: '#1e1e1e',
+            foreground: '#d4d4d4',
+            cursor: '#d4d4d4',
+            cursorAccent: '#1e1e1e',
+            black: '#000000',
+            red: '#f44747',
+            green: '#4ec9b0',
+            yellow: '#dcdcaa',
+            blue: '#569cd6',
+            magenta: '#c586c0',
+            cyan: '#9cdcfe',
+            white: '#d4d4d4',
+            brightBlack: '#808080',
+            brightRed: '#f44747',
+            brightGreen: '#4ec9b0',
+            brightYellow: '#dcdcaa',
+            brightBlue: '#569cd6',
+            brightMagenta: '#c586c0',
+            brightCyan: '#9cdcfe',
+            brightWhite: '#ffffff',
+          },
+          fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+          fontSize: 14,
+          lineHeight: 1.2,
+          cursorBlink: false,
+          cursorStyle: 'block',
+          scrollback: 5000,
+          convertEol: true,
+          allowProposedApi: true,
+        });
+
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+
+        console.log('[Terminal] Opening terminal...');
+        term.open(terminalRef.current);
+
+        // Delay fit to ensure container is sized
+        setTimeout(() => {
+          if (mounted && fitAddon) {
+            fitAddon.fit();
+          }
+        }, 50);
+
+        xtermRef.current = term;
+        fitAddonRef.current = fitAddon;
+        lastOutputLengthRef.current = 0;
+
+        console.log('[Terminal] Terminal ready!');
+        setIsReady(true);
+
+        // Handle resize
+        const handleResize = () => {
+          if (fitAddonRef.current && xtermRef.current) {
+            try {
+              fitAddonRef.current.fit();
+            } catch (e) {
+              console.error('[Terminal] Fit error:', e);
+            }
+          }
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        // ResizeObserver for container size changes
+        const resizeObserver = new ResizeObserver(() => {
+          handleResize();
+        });
+        if (terminalRef.current) {
+          resizeObserver.observe(terminalRef.current);
+        }
+
+        cleanupFn = () => {
+          window.removeEventListener('resize', handleResize);
+          resizeObserver.disconnect();
+        };
+      } catch (err) {
+        console.error('[Terminal] Init error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
+      }
     };
 
-    initTerminal();
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(initTerminal, 100);
 
     return () => {
       mounted = false;
+      clearTimeout(timer);
+      if (cleanupFn) cleanupFn();
       if (xtermRef.current) {
         xtermRef.current.dispose();
         xtermRef.current = null;
@@ -140,15 +179,23 @@ export function Terminal({ output }: TerminalProps) {
   }, [isReady]);
 
   return (
-    <div className="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden relative">
       <div
         ref={terminalRef}
-        className="flex-1 p-2"
-        style={{ minHeight: '200px' }}
+        className="flex-1"
+        style={{ minHeight: '200px', padding: '8px' }}
       />
-      {!isReady && (
-        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+      {!isReady && !error && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-[#1e1e1e]">
           Loading terminal...
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center text-red-400 bg-[#1e1e1e] p-4 text-center">
+          <div>
+            <p>Terminal error: {error}</p>
+            <p className="text-sm text-gray-500 mt-2">Try refreshing the page</p>
+          </div>
         </div>
       )}
     </div>
