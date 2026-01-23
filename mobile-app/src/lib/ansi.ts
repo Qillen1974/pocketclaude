@@ -150,12 +150,11 @@ export function stripAnsi(text: string): string {
   return crProcessed.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '').replace(/\r/g, '');
 }
 
-// Tool names that Claude Code uses
+// Tool names that Claude Code uses - must match tool call FORMAT, not just the word
+// These patterns are intentionally strict to avoid filtering Claude's conversational text
 const TOOL_PATTERNS = [
-  /^(Read|Edit|Write|Bash|Grep|Glob|Task|WebFetch|WebSearch|TodoWrite|NotebookEdit)/i,
-  /^(Reading|Editing|Writing|Running|Searching|Fetching|Globbing)/i,
-  /^\s*●\s+(Read|Edit|Write|Bash|Grep|Glob|Task)/i,
-  /^\s*[▸▹►▻→]\s+/,  // Arrow prefixed tool indicators
+  /^\s*●\s+(Read|Edit|Write|Bash|Grep|Glob|Task)/i,  // Bullet-prefixed tool calls
+  /^\s*[▸▹►▻→]\s+(Read|Edit|Write|Bash|Grep|Glob|Task|WebFetch|WebSearch)/i,  // Arrow prefixed tool indicators
 ];
 
 // Status and UI patterns to filter out
@@ -170,7 +169,7 @@ const STATUS_PATTERNS = [
   /^\?\s+for shortcuts/,
   /^>\s*$/,    // Empty prompt
   /^\.{3,}$/,  // Ellipsis loading
-  /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·●*]/,  // Spinner and status characters
+  /^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✻✽✶✢·●]/,  // Spinner and status characters (NOT * which is markdown)
   /Brewing|Waiting|Kneading|Misting|Seasoning|Cooked|Dilly-dallying|Hullaballooing/i,  // Claude status words
   /^\s*\[\s*\d+\/\d+\s*\]/,  // Progress indicators like [1/5]
   /^Tokens:/i,  // Token count
@@ -191,9 +190,9 @@ const STATUS_PATTERNS = [
   /Tip:\s*Hit/i,  // Tip messages
   /ctrl\+[a-z]\s+to\s+/i,  // Ctrl shortcut hints
   /shift\+tab/i,  // Shift+tab hint
-  /Read\([^)]+\)/,  // Read tool indicator
-  /Glob\([^)]+\)/,  // Glob tool indicator
-  /Bash\([^)]+\)/,  // Bash tool indicator
+  /^\s*Read\([^)]+\)$/,  // Read tool indicator (entire line is just the tool call)
+  /^\s*Glob\([^)]+\)$/,  // Glob tool indicator (entire line is just the tool call)
+  /^\s*Bash\([^)]+\)$/,  // Bash tool indicator (entire line is just the tool call)
   /\+\d+\s+more tool/i,  // More tools indicator
   /run in background/i,  // Background hint
   /\[CONTEXT FROM PREVIOUS SESSION/i,  // Session context injection
@@ -273,7 +272,8 @@ export function extractCleanContent(text: string): string {
     }
 
     // Detect tool block end (empty line or new conversational content)
-    if (inToolBlock && (!trimmed || /^[A-Z][a-z]/.test(trimmed))) {
+    // Match lines starting with capital letter (including "I'll", "I've", etc.)
+    if (inToolBlock && (!trimmed || /^[A-Z]/.test(trimmed))) {
       inToolBlock = false;
     }
 
