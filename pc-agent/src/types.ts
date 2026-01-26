@@ -19,7 +19,7 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'get_last_session_output' | 'keepalive' | 'upload_file';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'get_last_session_output' | 'keepalive' | 'upload_file' | 'list_custom_commands';
   projectId?: string;
   input?: string;
   sessionId?: string;
@@ -27,6 +27,12 @@ export interface CommandPayload {
   fileName?: string;
   fileContent?: string;  // Base64 encoded
   mimeType?: string;
+}
+
+export interface CustomCommand {
+  name: string;
+  description: string;
+  content: string;
 }
 
 export interface OutputPayload {

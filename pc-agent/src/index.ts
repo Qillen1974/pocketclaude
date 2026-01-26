@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { Message, CommandPayload, ProjectConfig, ProjectsConfig, QUICK_SESSION_PROJECT_ID } from './types';
+import { Message, CommandPayload, ProjectConfig, ProjectsConfig, CustomCommand, QUICK_SESSION_PROJECT_ID } from './types';
 import { SessionManager } from './session-manager';
 import { ReconnectManager } from './reconnect';
 import { HistoryManager } from './history-manager';
@@ -307,6 +307,49 @@ function handleCommand(command: CommandPayload): void {
       } catch (err) {
         console.error('[Agent] File upload error:', err);
         sendError('UPLOAD_FAILED', `Failed to upload file: ${(err as Error).message}`, command.sessionId);
+      }
+      break;
+    }
+
+    case 'list_custom_commands': {
+      const customCommands: CustomCommand[] = [];
+      const commandsDir = path.join(os.homedir(), '.claude', 'commands');
+
+      try {
+        if (fs.existsSync(commandsDir)) {
+          const files = fs.readdirSync(commandsDir);
+          for (const file of files) {
+            const filePath = path.join(commandsDir, file);
+            const stat = fs.statSync(filePath);
+
+            if (stat.isFile() && file.endsWith('.md')) {
+              const content = fs.readFileSync(filePath, 'utf-8');
+              const name = file.replace(/\.md$/, '');
+
+              // Extract description from first line (skip # if present) or first non-empty line
+              const lines = content.split('\n');
+              let description = name;
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                  description = trimmed.substring(0, 100);
+                  break;
+                } else if (trimmed.startsWith('# ')) {
+                  description = trimmed.substring(2, 102);
+                  break;
+                }
+              }
+
+              customCommands.push({ name, description, content });
+            }
+          }
+        }
+
+        console.log(`[Agent] Found ${customCommands.length} custom commands`);
+        sendStatus('custom_commands_list', { commands: customCommands });
+      } catch (err) {
+        console.error('[Agent] Error reading custom commands:', err);
+        sendStatus('custom_commands_list', { commands: [] });
       }
       break;
     }
