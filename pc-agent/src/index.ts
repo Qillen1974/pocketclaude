@@ -322,9 +322,10 @@ function handleCommand(command: CommandPayload): void {
           console.log(`[Agent] Image detected, triggering auto-analysis`);
           // Wait a moment for the upload status to be sent, then inject analysis request
           setTimeout(() => {
-            const analysisPrompt = `I've uploaded an image to: ${filePath}\n\nPlease analyze this image and describe what you see. If there's code, text, or diagrams, extract and explain the relevant information.`;
+            // Use explicit instruction to read the image file (single line to avoid TUI issues)
+            const analysisPrompt = `Please use the Read tool to view and analyze this image file: ${filePath} - Describe what you see.`;
             sessionManager?.sendInput(command.sessionId!, analysisPrompt + '\n');
-          }, 1000);
+          }, 2000);  // Increased delay to let TUI settle
         }
       } catch (err) {
         console.error('[Agent] File upload error:', err);
