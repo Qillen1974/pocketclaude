@@ -2,17 +2,25 @@
 
 import { useState, FormEvent, KeyboardEvent } from 'react';
 import { FileUploadButton } from './FileUploadButton';
+import { CommandsMenu } from './CommandsMenu';
+import { CustomCommand } from '@/lib/types';
 
 interface InputBarProps {
   onSubmit: (input: string) => void;
   onUpload?: (fileName: string, fileContent: string, mimeType?: string) => void;
   uploadStatus?: 'idle' | 'uploading' | 'success' | 'error';
+  customCommands?: CustomCommand[];
   disabled?: boolean;
   placeholder?: string;
 }
 
-export function InputBar({ onSubmit, onUpload, uploadStatus = 'idle', disabled, placeholder = 'Type a message...' }: InputBarProps) {
+export function InputBar({ onSubmit, onUpload, uploadStatus = 'idle', customCommands = [], disabled, placeholder = 'Type a message...' }: InputBarProps) {
   const [input, setInput] = useState('');
+
+  const handleCommandSelect = (command: CustomCommand) => {
+    // Send the command as a slash command
+    onSubmit(`/${command.name}\r`);
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -61,6 +69,13 @@ export function InputBar({ onSubmit, onUpload, uploadStatus = 'idle', disabled, 
   return (
     <form onSubmit={handleSubmit} className="border-t border-gray-700 bg-gray-800 p-4">
       <div className="flex gap-2 items-center">
+        {customCommands.length > 0 && (
+          <CommandsMenu
+            commands={customCommands}
+            onSelect={handleCommandSelect}
+            disabled={disabled}
+          />
+        )}
         {onUpload && (
           <FileUploadButton
             onUpload={onUpload}
