@@ -31,6 +31,7 @@ export default function SessionPage() {
     uploadFile,
     uploadStatus,
     sendKeepalive,
+    customCommands,
   } = useRelay();
 
   // Set session ID immediately on mount - this must happen before output arrives
@@ -71,11 +72,14 @@ export default function SessionPage() {
 
   // Redirect to projects if session no longer exists (e.g., SESSION_NOT_FOUND error)
   useEffect(() => {
-    if (currentSessionId === null && sessionId && status === 'authenticated') {
+    // Only redirect if the session is not in the sessions list
+    // This prevents redirect during reconnect when session is still cached
+    const sessionExists = sessions.some(s => s.sessionId === sessionId);
+    if (currentSessionId === null && sessionId && status === 'authenticated' && !sessionExists) {
       // Session was cleared (likely due to SESSION_NOT_FOUND) - redirect
       router.push('/projects');
     }
-  }, [currentSessionId, sessionId, status, router]);
+  }, [currentSessionId, sessionId, status, router, sessions]);
 
   const handleBack = () => {
     router.push('/projects');
@@ -145,6 +149,7 @@ export default function SessionPage() {
         onSubmit={sendInput}
         onUpload={uploadFile}
         uploadStatus={uploadStatus}
+        customCommands={customCommands}
         disabled={!agentConnected || !session}
         placeholder={!agentConnected ? 'Agent disconnected' : 'Type a message...'}
       />

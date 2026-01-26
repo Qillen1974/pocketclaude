@@ -11,6 +11,7 @@ import {
   StatusPayload,
   OutputPayload,
   ErrorPayload,
+  CustomCommand,
   QUICK_SESSION_PROJECT_ID,
 } from '@/lib/types';
 
@@ -25,6 +26,7 @@ interface RelayContextValue {
   sessionHistory: SessionHistoryItem[];
   lastSessionOutput: string | null;
   uploadStatus: 'idle' | 'uploading' | 'success' | 'error';
+  customCommands: CustomCommand[];
   connect: (token: string) => void;
   disconnect: () => void;
   listProjects: () => void;
@@ -41,19 +43,50 @@ interface RelayContextValue {
   clearLastSessionOutput: () => void;
   sendKeepalive: (sessionId: string) => void;
   uploadFile: (fileName: string, fileContent: string, mimeType?: string) => void;
+  listCustomCommands: () => void;
 }
 
 const RelayContext = createContext<RelayContextValue | null>(null);
 
+const SESSIONS_STORAGE_KEY = 'pocketclaude_sessions';
+
+// Helper to load sessions from localStorage
+function loadSessionsFromStorage(): SessionInfo[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (stored) {
+      const sessions = JSON.parse(stored) as SessionInfo[];
+      // Filter out sessions older than 30 minutes (matching server timeout)
+      const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
+      return sessions.filter(s => s.lastActivity > thirtyMinutesAgo);
+    }
+  } catch (e) {
+    console.error('[RelayContext] Failed to load sessions from storage:', e);
+  }
+  return [];
+}
+
+// Helper to save sessions to localStorage
+function saveSessionsToStorage(sessions: SessionInfo[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+  } catch (e) {
+    console.error('[RelayContext] Failed to save sessions to storage:', e);
+  }
+}
+
 export function RelayProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>(() => loadSessionsFromStorage());
   const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
   const [terminalOutput, setTerminalOutput] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryItem[]>([]);
   const [lastSessionOutput, setLastSessionOutput] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
 
   // Buffer to store output that arrives before currentSessionId is set
   const [outputBuffer, setOutputBuffer] = useState<Map<string, string>>(new Map());
@@ -90,7 +123,19 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
           }
           case 'sessions_list': {
             const data = payload.data as { sessions: SessionInfo[] };
-            setSessions(data.sessions || []);
+            const agentSessions = data.sessions || [];
+            // Agent's list is the source of truth for active sessions
+            // Merge with cached sessions that might not be in agent's list yet
+            setSessions(prev => {
+              const agentSessionIds = new Set(agentSessions.map(s => s.sessionId));
+              // Keep cached sessions that aren't confirmed dead (not in agent's response)
+              // but only if they're recent (within last 5 minutes - they might be starting up)
+              const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+              const cachedRecent = prev.filter(
+                s => !agentSessionIds.has(s.sessionId) && s.lastActivity > fiveMinutesAgo
+              );
+              return [...agentSessions, ...cachedRecent];
+            });
             break;
           }
           case 'session_started': {
@@ -134,6 +179,11 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
             setUploadStatus('success');
             // Reset upload status after a delay
             setTimeout(() => setUploadStatus('idle'), 2000);
+            break;
+          }
+          case 'custom_commands_list': {
+            const data = payload.data as { commands: CustomCommand[] };
+            setCustomCommands(data.commands || []);
             break;
           }
         }
@@ -259,21 +309,23 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     });
   }, [sendCommand, currentSessionId]);
 
-  // Clear stale sessions when agent disconnects or connection lost
-  // This prevents orphaned session references from accumulating
-  useEffect(() => {
-    if (!agentConnected || status === 'disconnected') {
-      setSessions([]);
-    }
-  }, [agentConnected, status]);
+  const listCustomCommands = useCallback(() => {
+    sendCommand({ command: 'list_custom_commands' });
+  }, [sendCommand]);
 
-  // Auto-fetch projects when authenticated and agent connected
+  // Persist sessions to localStorage whenever they change
+  useEffect(() => {
+    saveSessionsToStorage(sessions);
+  }, [sessions]);
+
+  // Auto-fetch projects and custom commands when authenticated and agent connected
   useEffect(() => {
     if (status === 'authenticated' && agentConnected) {
       listProjects();
       listSessions();
+      listCustomCommands();
     }
-  }, [status, agentConnected, listProjects, listSessions]);
+  }, [status, agentConnected, listProjects, listSessions, listCustomCommands]);
 
   return (
     <RelayContext.Provider value={{
@@ -287,6 +339,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       sessionHistory,
       lastSessionOutput,
       uploadStatus,
+      customCommands,
       connect,
       disconnect,
       listProjects,
@@ -303,6 +356,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       clearLastSessionOutput,
       sendKeepalive,
       uploadFile,
+      listCustomCommands,
     }}>
       {children}
     </RelayContext.Provider>
