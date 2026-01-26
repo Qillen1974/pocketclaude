@@ -34,6 +34,7 @@ interface RelayContextValue {
   startSession: (projectId: string) => void;
   startQuickSession: () => void;
   sendInput: (input: string) => void;
+  smartCommand: (input: string) => void;
   closeSession: () => void;
   setCurrentSessionId: (sessionId: string | null) => void;
   clearError: () => void;
@@ -267,6 +268,16 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
     sendCommand({ command: 'send_input', sessionId: currentSessionId, input });
   }, [sendCommand, currentSessionId]);
 
+  const smartCommand = useCallback((input: string) => {
+    // Smart routing - auto-routes to the right project based on keywords
+    // If there's an active session, send to it; otherwise let the agent route it
+    if (currentSessionId) {
+      sendCommand({ command: 'send_input', sessionId: currentSessionId, input });
+    } else {
+      sendCommand({ command: 'smart_command', input });
+    }
+  }, [sendCommand, currentSessionId]);
+
   const closeSession = useCallback(() => {
     if (!currentSessionId) return;
     sendCommand({ command: 'close_session', sessionId: currentSessionId });
@@ -347,6 +358,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       startSession,
       startQuickSession,
       sendInput,
+      smartCommand,
       closeSession,
       setCurrentSessionId,
       clearError,

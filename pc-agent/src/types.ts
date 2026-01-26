@@ -19,7 +19,7 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'get_last_session_output' | 'keepalive' | 'upload_file' | 'list_custom_commands';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'get_session_history' | 'get_context_summary' | 'get_last_session_output' | 'keepalive' | 'upload_file' | 'list_custom_commands' | 'smart_command';
   projectId?: string;
   input?: string;
   sessionId?: string;
@@ -55,6 +55,9 @@ export interface ProjectConfig {
   id: string;
   name: string;
   path: string;
+  keywords?: string[];
+  description?: string;
+  techStack?: string[];
 }
 
 export interface ProjectsConfig {
@@ -77,4 +80,16 @@ export interface SessionInfo {
   projectId: string;
   status: SessionStatus;
   lastActivity: number;
+}
+
+// Router types
+export type RouteAction = 'start_session' | 'send_input' | 'query';
+export type InputType = 'command' | 'question' | 'conversation';
+
+export interface RouteResult {
+  projectId: string | null;
+  confidence: number;
+  action: RouteAction;
+  processedInput: string;
+  inputType: InputType;
 }

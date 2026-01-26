@@ -7,6 +7,8 @@ import { Message, CommandPayload, ProjectConfig, ProjectsConfig, CustomCommand, 
 import { SessionManager } from './session-manager';
 import { ReconnectManager } from './reconnect';
 import { HistoryManager } from './history-manager';
+import { AgentRouter } from './agent-router';
+import { MemoryManager } from './memory-manager';
 
 // Global error handlers to prevent process from crashing
 process.on('uncaughtException', (err) => {
@@ -52,6 +54,8 @@ let ws: WebSocket | null = null;
 let sessionManager: SessionManager | null = null;
 const reconnectManager = new ReconnectManager();
 const historyManager = new HistoryManager();
+const memoryManager = new MemoryManager();
+const agentRouter = new AgentRouter(projects);
 
 // Track session to project mapping for history
 const sessionProjectMap = new Map<string, { projectId: string; projectName: string }>();
@@ -155,6 +159,12 @@ function handleCommand(command: CommandPayload): void {
       // Start history recording
       sessionProjectMap.set(sessionId, { projectId: project.id, projectName: project.name });
       historyManager.startSession(sessionId, project.id, project.name);
+
+      // Record in memory
+      if (project.id !== QUICK_SESSION_PROJECT_ID) {
+        memoryManager.recordActivity(project.id, 'Started new session');
+        agentRouter.setLastUsedProject(project.id);
+      }
 
       sendStatus('session_started', {
         sessionId,
@@ -354,6 +364,109 @@ function handleCommand(command: CommandPayload): void {
       break;
     }
 
+    case 'smart_command': {
+      if (!command.input) {
+        sendError('MISSING_INPUT', 'input is required for smart_command');
+        return;
+      }
+
+      if (!sessionManager) {
+        sendError('NO_SESSION_MANAGER', 'Session manager not initialized');
+        return;
+      }
+
+      // Find active session if any
+      const activeSessions = sessionManager.listSessions();
+      let activeSession: { projectId: string; sessionId: string } | undefined;
+
+      if (activeSessions.length > 0) {
+        // Use the most recently active session
+        const mostRecent = activeSessions.reduce((a, b) =>
+          a.lastActivity > b.lastActivity ? a : b
+        );
+        activeSession = { projectId: mostRecent.projectId, sessionId: mostRecent.sessionId };
+      }
+
+      // Route the command
+      const routeResult = agentRouter.routeCommand(command.input, activeSession);
+      console.log(`[Agent] Smart routing: ${JSON.stringify(routeResult)}`);
+
+      // Record activity in memory
+      if (routeResult.projectId) {
+        memoryManager.recordActivity(routeResult.projectId, command.input);
+        agentRouter.setLastUsedProject(routeResult.projectId);
+      }
+
+      if (routeResult.action === 'send_input' && activeSession) {
+        // Send to existing session
+        const success = sessionManager.sendInput(activeSession.sessionId, command.input);
+        if (!success) {
+          sendError('SESSION_NOT_FOUND', `Session ${activeSession.sessionId} not found`);
+        }
+      } else {
+        // Need to start a new session
+        let project: ProjectConfig;
+
+        if (routeResult.projectId && routeResult.projectId !== QUICK_SESSION_PROJECT_ID) {
+          const foundProject = projects.find(p => p.id === routeResult.projectId);
+          if (!foundProject) {
+            // Fall back to quick session
+            project = {
+              id: QUICK_SESSION_PROJECT_ID,
+              name: 'Quick Session',
+              path: QUICK_SESSION_PATH,
+            };
+          } else {
+            project = foundProject;
+          }
+        } else {
+          project = {
+            id: QUICK_SESSION_PROJECT_ID,
+            name: 'Quick Session',
+            path: QUICK_SESSION_PATH,
+          };
+        }
+
+        // Close any existing sessions for this project
+        const existingSessions = sessionManager.listSessions().filter(s => s.projectId === project.id);
+        for (const existingSession of existingSessions) {
+          console.log(`[Agent] Closing existing session ${existingSession.sessionId} for project ${project.id}`);
+          historyManager.endSession(existingSession.sessionId);
+          sessionProjectMap.delete(existingSession.sessionId);
+          sessionManager.closeSession(existingSession.sessionId);
+        }
+
+        // Get previous context
+        const previousContext = historyManager.getContextSummary(project.id);
+        const hasPreviousContext = previousContext.length > 0;
+
+        // Start session
+        const sessionId = sessionManager.startSession(project, hasPreviousContext ? previousContext : undefined);
+
+        // Track session
+        sessionProjectMap.set(sessionId, { projectId: project.id, projectName: project.name });
+        historyManager.startSession(sessionId, project.id, project.name);
+
+        // Send notification about auto-routed session
+        sendStatus('session_started', {
+          sessionId,
+          projectId: project.id,
+          isQuickSession: project.id === QUICK_SESSION_PROJECT_ID,
+          hasPreviousContext,
+          autoRouted: true,
+          routeConfidence: routeResult.confidence,
+        }, sessionId);
+
+        // After a delay, send the user's input to the session
+        setTimeout(() => {
+          if (sessionManager) {
+            sessionManager.sendInput(sessionId, command.input || '');
+          }
+        }, 3500); // Wait for Claude to initialize
+      }
+      break;
+    }
+
     default:
       sendError('UNKNOWN_COMMAND', `Unknown command: ${(command as any).command}`);
   }
@@ -445,6 +558,7 @@ function connect(): void {
 // Handle graceful shutdown
 process.on('SIGINT', () => {
   console.log('[Agent] Shutting down...');
+  memoryManager.saveImmediate();
   if (sessionManager) {
     sessionManager.destroy();
   }
@@ -456,6 +570,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   console.log('[Agent] Shutting down...');
+  memoryManager.saveImmediate();
   if (sessionManager) {
     sessionManager.destroy();
   }

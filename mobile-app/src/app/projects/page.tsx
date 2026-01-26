@@ -10,6 +10,8 @@ import { SessionHistory } from '@/components/SessionHistory';
 export default function ProjectsPage() {
   const router = useRouter();
   const [showHistory, setShowHistory] = useState(false);
+  const [smartInput, setSmartInput] = useState('');
+  const [isSmartRouting, setIsSmartRouting] = useState(false);
   const {
     status,
     agentConnected,
@@ -19,6 +21,7 @@ export default function ProjectsPage() {
     lastSessionOutput,
     startSession,
     startQuickSession,
+    smartCommand,
     setCurrentSessionId,
     disconnect,
     error,
@@ -40,6 +43,16 @@ export default function ProjectsPage() {
 
   const handleQuickSession = () => {
     startQuickSession();
+  };
+
+  const handleSmartCommand = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!smartInput.trim() || isSmartRouting) return;
+    setIsSmartRouting(true);
+    smartCommand(smartInput.trim());
+    setSmartInput('');
+    // Reset routing state after a delay (session navigation will happen automatically)
+    setTimeout(() => setIsSmartRouting(false), 3000);
   };
 
   const handleOpenSession = (sessionId: string) => {
@@ -108,6 +121,34 @@ export default function ProjectsPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Smart Chat Input */}
+            <div className="bg-gray-800 rounded-lg p-4 border border-blue-600/50">
+              <h3 className="text-white font-medium flex items-center gap-2 mb-3">
+                <span className="text-blue-400">🧠</span>
+                Smart Chat
+              </h3>
+              <p className="text-gray-400 text-sm mb-3">
+                Just type - auto-routes to the right project based on keywords
+              </p>
+              <form onSubmit={handleSmartCommand} className="flex gap-2">
+                <input
+                  type="text"
+                  value={smartInput}
+                  onChange={(e) => setSmartInput(e.target.value)}
+                  placeholder="e.g., 'check the relay server code' or 'fix task manager bug'"
+                  className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  disabled={isSmartRouting}
+                />
+                <button
+                  type="submit"
+                  disabled={!smartInput.trim() || isSmartRouting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  {isSmartRouting ? 'Routing...' : 'Send'}
+                </button>
+              </form>
+            </div>
+
             {/* Quick Session Card */}
             <div className="bg-gray-800 rounded-lg p-4 border border-purple-600/50">
               <div className="flex items-center justify-between">

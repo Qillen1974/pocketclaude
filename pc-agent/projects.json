@@ -3,22 +3,34 @@
     {
       "id": "ai-helper",
       "name": "AI Helper (PocketClaude)",
-      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\ai-helper"
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\ai-helper",
+      "keywords": ["pocket", "claude", "relay", "websocket", "mobile", "telegram", "bot", "agent"],
+      "description": "Mobile relay system for remote Claude Code access via cloud relay and Telegram",
+      "techStack": ["node", "typescript", "ws", "next.js", "telegraf"]
     },
     {
       "id": "scm-workdesk",
       "name": "SCM Workdesk",
-      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\scm-workdesk"
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\scm-workdesk",
+      "keywords": ["scm", "supply", "chain", "management", "workdesk", "logistics", "inventory"],
+      "description": "Supply chain management workdesk application",
+      "techStack": ["node", "typescript"]
     },
     {
       "id": "task-manager-ai",
       "name": "Task Manager AI",
-      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\task-manager-ai"
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\task-manager-ai",
+      "keywords": ["task", "manager", "todo", "ai", "productivity", "planning"],
+      "description": "AI-powered task management application",
+      "techStack": ["node", "typescript"]
     },
     {
       "id": "travel-independent",
       "name": "Travel Independent",
-      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\travel-independent"
+      "path": "C:\\Users\\charl\\Downloads\\Claude Code Coursera lesson\\travel-independent",
+      "keywords": ["travel", "trip", "vacation", "booking", "itinerary", "tourism"],
+      "description": "Independent travel planning and booking application",
+      "techStack": ["node", "typescript"]
     }
   ]
 }
