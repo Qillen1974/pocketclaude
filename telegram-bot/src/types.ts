@@ -15,10 +15,14 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'smart_command';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'smart_command' | 'upload_file';
   projectId?: string;
   input?: string;
   sessionId?: string;  // Required for send_input and close_session
+  // File upload fields
+  fileName?: string;
+  fileContent?: string;  // Base64 encoded
+  mimeType?: string;
 }
 
 export interface OutputPayload {

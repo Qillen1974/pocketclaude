@@ -265,6 +265,16 @@ export class RelayClient extends EventEmitter {
     this.sendCommand({ command: 'smart_command', input, sessionId }, sessionId);
   }
 
+  uploadFile(sessionId: string, fileName: string, fileContent: string, mimeType?: string): void {
+    this.sendCommand({
+      command: 'upload_file',
+      sessionId,
+      fileName,
+      fileContent,
+      mimeType,
+    }, sessionId);
+  }
+
   getState(): RelayConnectionState {
     return this.state;
   }

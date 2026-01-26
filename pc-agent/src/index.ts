@@ -314,6 +314,18 @@ function handleCommand(command: CommandPayload): void {
           filePath: filePath,
           size: fileBuffer.length,
         }, command.sessionId);
+
+        // Auto-analyze images - inject a message to Claude
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+        const ext = path.extname(sanitizedName).toLowerCase();
+        if (imageExtensions.includes(ext)) {
+          console.log(`[Agent] Image detected, triggering auto-analysis`);
+          // Wait a moment for the upload status to be sent, then inject analysis request
+          setTimeout(() => {
+            const analysisPrompt = `I've uploaded an image to: ${filePath}\n\nPlease analyze this image and describe what you see. If there's code, text, or diagrams, extract and explain the relevant information.`;
+            sessionManager?.sendInput(command.sessionId!, analysisPrompt + '\n');
+          }, 1000);
+        }
       } catch (err) {
         console.error('[Agent] File upload error:', err);
         sendError('UPLOAD_FAILED', `Failed to upload file: ${(err as Error).message}`, command.sessionId);

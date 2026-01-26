@@ -152,6 +152,52 @@ bot.on('text', async (ctx) => {
   }
 });
 
+// Handle photo messages
+bot.on('photo', async (ctx) => {
+  lastActiveChatId = ctx.chat.id;
+
+  // Get the largest photo size
+  const photos = ctx.message.photo;
+  const largestPhoto = photos[photos.length - 1];
+
+  try {
+    // Get user session
+    const userSession = messageHandler.getSession(ctx.chat.id);
+    if (!userSession?.activeSessionId) {
+      await ctx.reply('No active session. Use /begin [project] to start one, then send your photo.');
+      return;
+    }
+
+    await ctx.reply('Receiving image...');
+
+    // Get file info and download
+    const file = await ctx.telegram.getFile(largestPhoto.file_id);
+    const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+
+    // Download the file
+    const response = await fetch(fileUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Content = buffer.toString('base64');
+
+    // Generate filename
+    const ext = file.file_path?.split('.').pop() || 'jpg';
+    const fileName = `telegram_photo_${Date.now()}.${ext}`;
+
+    // Get caption if provided
+    const caption = ctx.message.caption || '';
+
+    // Upload to session
+    relayClient.uploadFile(userSession.activeSessionId, fileName, base64Content, `image/${ext}`);
+
+    await ctx.reply(`Image uploaded: ${fileName}\n${caption ? `Caption: ${caption}\n` : ''}Claude will analyze it...`);
+
+  } catch (error) {
+    console.error('[Bot] Error handling photo:', error);
+    await ctx.reply('Failed to process image. Please try again.');
+  }
+});
+
 // Relay client event handlers
 relayClient.on('connected', () => {
   console.log('[Bot] Connected to relay server');
