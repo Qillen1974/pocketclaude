@@ -28,6 +28,8 @@ if (!RELAY_TOKEN) {
 // Track which chat is associated with which user for output routing
 const chatOutputMap: Map<string, number> = new Map(); // sessionId -> chatId
 let lastActiveChatId: number | null = null;
+let projectsListRequested = false;  // Only show projects when explicitly requested
+let isFirstConnect = true;  // Track first connection to avoid spam
 
 // Initialize components
 const relayClient = new RelayClient(RELAY_URL, RELAY_TOKEN);
@@ -83,6 +85,7 @@ bot.command('projects', async (ctx) => {
     return;
   }
 
+  projectsListRequested = true;  // Flag to show the list when it arrives
   await messageHandler.handleCommand(ctx.chat.id, '/projects');
   // Response will come via relay event
 });
@@ -198,21 +201,28 @@ bot.on('photo', async (ctx) => {
   }
 });
 
+// Track if we've already fetched projects for this connection
+let projectsFetched = false;
+
 // Relay client event handlers
 relayClient.on('connected', () => {
   console.log('[Bot] Connected to relay server');
-  if (lastActiveChatId) {
+  // Only notify user on first connect, not on reconnects
+  if (isFirstConnect && lastActiveChatId) {
     bot.telegram.sendMessage(lastActiveChatId, 'Connected to relay server.').catch(console.error);
+    isFirstConnect = false;
   }
-  // Fetch initial project list
-  relayClient.listProjects();
+  // Fetch project list silently (for internal caching, not display) - only once per connection
+  if (!projectsFetched) {
+    projectsFetched = true;
+    relayClient.listProjects();
+  }
 });
 
 relayClient.on('disconnected', () => {
   console.log('[Bot] Disconnected from relay server');
-  if (lastActiveChatId) {
-    bot.telegram.sendMessage(lastActiveChatId, 'Disconnected from relay. Reconnecting...').catch(console.error);
-  }
+  projectsFetched = false;  // Reset so we can fetch again on reconnect
+  // Don't spam user with disconnect messages - they'll notice if something doesn't work
 });
 
 relayClient.on('output', (sessionId: string, data: string) => {
@@ -222,9 +232,12 @@ relayClient.on('output', (sessionId: string, data: string) => {
 relayClient.on('projectsList', (data: { projects: ProjectInfo[] } | ProjectInfo[]) => {
   // Handle both wrapped and unwrapped formats
   const projects = Array.isArray(data) ? data : (data.projects || []);
-  const message = OutputFormatter.formatProjectList(projects);
 
-  if (lastActiveChatId) {
+  // Only show to user if they explicitly requested it
+  if (projectsListRequested && lastActiveChatId) {
+    projectsListRequested = false;  // Reset flag
+    const message = OutputFormatter.formatProjectList(projects);
+
     // Create inline keyboard for project selection
     if (projects.length > 0) {
       const buttons = projects.map(p =>

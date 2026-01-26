@@ -21,16 +21,21 @@ export class ConnectionManager {
   }
 
   registerAgent(ws: WebSocket): boolean {
-    // If there's an existing agent, replace it (likely stale connection)
+    // If there's an existing agent, close it gracefully (not terminate) to avoid race conditions
     if (this.agent) {
       console.log('[ConnectionManager] Replacing existing agent connection (likely stale)');
       try {
-        this.agent.ws.terminate();
+        // Use close() instead of terminate() to allow graceful shutdown
+        // This prevents Railway from potentially killing all connections from the same source
+        if (this.agent.ws.readyState === WebSocket.OPEN) {
+          this.agent.ws.close(4003, 'Replaced by new agent');
+        }
       } catch (err) {
-        // Ignore errors during termination
+        // Ignore errors during close
+        console.log('[ConnectionManager] Error closing old agent:', err);
       }
-      this.agent = null;
     }
+    // Small delay to let the old connection close
     this.agent = {
       ws,
       role: 'agent',

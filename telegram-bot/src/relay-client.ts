@@ -137,10 +137,20 @@ export class RelayClient extends EventEmitter {
 
     switch (payload.status) {
       case 'connected':
-        this.state = 'connected';
-        this.reconnectAttempt = 0;
-        this.startPingInterval();
-        this.emit('connected');
+        // Only emit 'connected' for our own authentication, not for agent broadcasts
+        // Our own auth has data.role === 'client', agent broadcasts have data.reason === 'agent_connected'
+        const data = payload.data as { role?: string; reason?: string } | undefined;
+        if (data?.role === 'client') {
+          this.state = 'connected';
+          this.reconnectAttempt = 0;
+          this.startPingInterval();
+          this.emit('connected');
+        } else if (data?.reason === 'agent_connected') {
+          // Agent connected - emit a separate event if needed
+          console.log('[RelayClient] Agent connected to relay');
+        } else if (data?.reason === 'agent_disconnected') {
+          console.log('[RelayClient] Agent disconnected from relay');
+        }
         break;
 
       case 'projects_list':
