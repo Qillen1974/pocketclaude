@@ -100,7 +100,7 @@ function DigestCard({ digest, onSelect, isSelected }: {
 
 export default function NewsPage() {
   const router = useRouter();
-  const { status, agentConnected, startSession, sendInput, sessions, disconnect, setNewsCallback } = useRelay();
+  const { status, agentConnected, startSession, sendInput, sessions, disconnect, setNewsCallback, setCurrentSessionId } = useRelay();
   const { digests, currentDigest, addDigest, clearAllDigests } = useNews();
   const [selectedDigest, setSelectedDigest] = useState<NewsDigest | null>(null);
   const [showRaw, setShowRaw] = useState(false);
@@ -144,15 +144,17 @@ export default function NewsPage() {
       const sessionAge = Date.now() - latestSession.lastActivity;
       // Only send if the session is fresh (within 5 seconds)
       if (sessionAge < 5000) {
+        // Set the current session ID so sendInput knows where to send
+        setCurrentSessionId(latestSession.sessionId);
         // Wait a bit for Claude to be ready, then send the news request
         const timer = setTimeout(() => {
           sendInput('Please search for today\'s news on Trump, Singapore, and Gadgets. Compile a digest with headlines, summaries, and source URLs.');
           setIsRequestingNews(false);
-        }, 3000);
+        }, 4000);
         return () => clearTimeout(timer);
       }
     }
-  }, [isRequestingNews, sessions, sendInput]);
+  }, [isRequestingNews, sessions, sendInput, setCurrentSessionId]);
 
   const handleDisconnect = () => {
     localStorage.removeItem('relay_token');
