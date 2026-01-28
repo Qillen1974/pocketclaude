@@ -47,3 +47,15 @@ body {
 .ansi-bright-cyan { color: #9cdcfe; }
 .ansi-white { color: #d4d4d4; }
 .ansi-bright-white { color: #ffffff; }
+
+/* Safe area support for notched devices (iPhone X, etc.) */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Ensure bottom nav accounts for safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-16 {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}

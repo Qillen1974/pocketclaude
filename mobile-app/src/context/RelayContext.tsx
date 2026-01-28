@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useCallback, useState, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   Message,
@@ -15,6 +15,15 @@ import {
   QUICK_SESSION_PROJECT_ID,
 } from '@/lib/types';
 
+// News digest detection patterns
+const NEWS_DIGEST_PATTERNS = [
+  /daily news digest/i,
+  /news digest.*\d{4}/i,
+  /top.*stories.*today/i,
+  /morning briefing/i,
+  /news summary/i,
+];
+
 interface RelayContextValue {
   status: ConnectionStatus;
   agentConnected: boolean;
@@ -27,6 +36,7 @@ interface RelayContextValue {
   lastSessionOutput: string | null;
   uploadStatus: 'idle' | 'uploading' | 'success' | 'error';
   customCommands: CustomCommand[];
+  onNewsDigestDetected: ((callback: (content: string) => void) => void) | null;
   connect: (token: string) => void;
   disconnect: () => void;
   listProjects: () => void;
@@ -45,6 +55,7 @@ interface RelayContextValue {
   sendKeepalive: (sessionId: string) => void;
   uploadFile: (fileName: string, fileContent: string, mimeType?: string) => void;
   listCustomCommands: () => void;
+  setNewsCallback: (callback: ((content: string) => void) | null) => void;
 }
 
 const RelayContext = createContext<RelayContextValue | null>(null);
@@ -91,6 +102,15 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
 
   // Buffer to store output that arrives before currentSessionId is set
   const [outputBuffer, setOutputBuffer] = useState<Map<string, string>>(new Map());
+
+  // News digest detection
+  const newsCallbackRef = useRef<((content: string) => void) | null>(null);
+  const newsBufferRef = useRef<string>('');
+  const newsDetectedRef = useRef<boolean>(false);
+
+  const setNewsCallback = useCallback((callback: ((content: string) => void) | null) => {
+    newsCallbackRef.current = callback;
+  }, []);
 
   // Custom setter that also flushes buffered output
   const setCurrentSessionId = useCallback((sessionId: string | null) => {
@@ -221,6 +241,37 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
             return newMap;
           });
         }
+
+        // News digest detection - accumulate and check for patterns
+        // Strip ANSI codes for pattern matching
+        const plainText = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+        newsBufferRef.current += plainText;
+
+        // Check if this looks like a news digest
+        if (!newsDetectedRef.current && newsCallbackRef.current) {
+          const isNewsDigest = NEWS_DIGEST_PATTERNS.some(pattern =>
+            pattern.test(newsBufferRef.current)
+          );
+
+          if (isNewsDigest) {
+            newsDetectedRef.current = true;
+            // Wait for more content to accumulate, then trigger callback
+            setTimeout(() => {
+              if (newsCallbackRef.current && newsBufferRef.current.length > 200) {
+                newsCallbackRef.current(newsBufferRef.current);
+              }
+              // Reset for next digest
+              newsBufferRef.current = '';
+              newsDetectedRef.current = false;
+            }, 5000); // Wait 5 seconds for full digest
+          }
+        }
+
+        // Clear news buffer periodically to prevent memory buildup
+        if (newsBufferRef.current.length > 50000) {
+          newsBufferRef.current = newsBufferRef.current.slice(-10000);
+        }
+
         break;
       }
       case 'error': {
@@ -351,6 +402,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       lastSessionOutput,
       uploadStatus,
       customCommands,
+      onNewsDigestDetected: null, // Deprecated, use setNewsCallback
       connect,
       disconnect,
       listProjects,
@@ -369,6 +421,7 @@ export function RelayProvider({ children }: { children: React.ReactNode }) {
       sendKeepalive,
       uploadFile,
       listCustomCommands,
+      setNewsCallback,
     }}>
       {children}
     </RelayContext.Provider>

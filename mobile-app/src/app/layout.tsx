@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { RelayProvider } from '@/context/RelayContext';
+import { NewsProvider } from '@/context/NewsContext';
+import { BottomNav } from '@/components/BottomNav';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -33,7 +35,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <RelayProvider>
-          {children}
+          <NewsProvider>
+            {children}
+            <BottomNav />
+          </NewsProvider>
         </RelayProvider>
       </body>
     </html>
