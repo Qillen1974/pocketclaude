@@ -100,11 +100,12 @@ function DigestCard({ digest, onSelect, isSelected }: {
 
 export default function NewsPage() {
   const router = useRouter();
-  const { status, agentConnected, startSession, disconnect, setNewsCallback } = useRelay();
+  const { status, agentConnected, startSession, sendInput, sessions, disconnect, setNewsCallback } = useRelay();
   const { digests, currentDigest, addDigest, clearAllDigests } = useNews();
   const [selectedDigest, setSelectedDigest] = useState<NewsDigest | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isRequestingNews, setIsRequestingNews] = useState(false);
 
   // Register callback to receive news digests from Claude
   const handleNewsDigest = useCallback((content: string) => {
@@ -132,8 +133,26 @@ export default function NewsPage() {
 
   const handleRequestNews = () => {
     // Start a session with the daily-newsroom project to request news
+    setIsRequestingNews(true);
     startSession('daily-newsroom');
   };
+
+  // When a session starts and we're requesting news, send the prompt
+  useEffect(() => {
+    if (isRequestingNews && sessions.length > 0) {
+      const latestSession = sessions[sessions.length - 1];
+      const sessionAge = Date.now() - latestSession.lastActivity;
+      // Only send if the session is fresh (within 5 seconds)
+      if (sessionAge < 5000) {
+        // Wait a bit for Claude to be ready, then send the news request
+        const timer = setTimeout(() => {
+          sendInput('Please search for today\'s news on Trump, Singapore, and Gadgets. Compile a digest with headlines, summaries, and source URLs.');
+          setIsRequestingNews(false);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isRequestingNews, sessions, sendInput]);
 
   const handleDisconnect = () => {
     localStorage.removeItem('relay_token');
@@ -205,9 +224,10 @@ export default function NewsPage() {
             </p>
             <button
               onClick={handleRequestNews}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              disabled={isRequestingNews}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
             >
-              Request Today&apos;s News
+              {isRequestingNews ? 'Requesting...' : 'Request Today\'s News'}
             </button>
           </div>
         ) : (
