@@ -100,7 +100,7 @@ function DigestCard({ digest, onSelect, isSelected }: {
 
 export default function NewsPage() {
   const router = useRouter();
-  const { status, agentConnected, startSession, sendInput, sessions, disconnect, setNewsCallback, setCurrentSessionId } = useRelay();
+  const { status, agentConnected, disconnect, setNewsCallback } = useRelay();
   const { digests, currentDigest, addDigest, clearAllDigests } = useNews();
   const [selectedDigest, setSelectedDigest] = useState<NewsDigest | null>(null);
   const [showRaw, setShowRaw] = useState(false);
@@ -131,30 +131,50 @@ export default function NewsPage() {
     }
   }, [status, router]);
 
-  const handleRequestNews = () => {
-    // Start a session with the daily-newsroom project to request news
+  const handleRequestNews = async () => {
+    // Trigger webhook to TaskWatcher which sends Telegram notification for approval
     setIsRequestingNews(true);
-    startSession('daily-newsroom');
-  };
+    try {
+      // Try local webhook first, then tunnel
+      const webhookUrls = [
+        'http://localhost:3002/webhook/task',
+        'https://possess-demo-plenty-buck.trycloudflare.com/webhook/task'
+      ];
 
-  // When a session starts and we're requesting news, send the prompt
-  useEffect(() => {
-    if (isRequestingNews && sessions.length > 0) {
-      const latestSession = sessions[sessions.length - 1];
-      const sessionAge = Date.now() - latestSession.lastActivity;
-      // Only send if the session is fresh (within 5 seconds)
-      if (sessionAge < 5000) {
-        // Set the current session ID so sendInput knows where to send
-        setCurrentSessionId(latestSession.sessionId);
-        // Wait a bit for Claude to be ready, then send the news request
-        const timer = setTimeout(() => {
-          sendInput('Please search for today\'s news on Trump, Singapore, and Gadgets. Compile a digest with headlines, summaries, and source URLs.');
-          setIsRequestingNews(false);
-        }, 4000);
-        return () => clearTimeout(timer);
+      const payload = {
+        taskId: `news-${Date.now()}`,
+        title: 'Daily News Digest',
+        description: 'Search for today\'s news on Trump, Singapore, and Gadgets. Compile a digest with headlines, summaries, and source URLs.',
+        projectName: 'daily-newsroom',
+        priority: 'high'
+      };
+
+      let success = false;
+      for (const url of webhookUrls) {
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (response.ok) {
+            success = true;
+            break;
+          }
+        } catch {
+          // Try next URL
+        }
       }
+
+      if (!success) {
+        console.error('Failed to send news request webhook');
+      }
+    } catch (error) {
+      console.error('Error requesting news:', error);
+    } finally {
+      setIsRequestingNews(false);
     }
-  }, [isRequestingNews, sessions, sendInput, setCurrentSessionId]);
+  };
 
   const handleDisconnect = () => {
     localStorage.removeItem('relay_token');
