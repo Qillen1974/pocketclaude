@@ -6,6 +6,7 @@ import { useRelay } from '@/context/RelayContext';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { ProjectCard } from '@/components/ProjectCard';
 import { SessionHistory } from '@/components/SessionHistory';
+import { BottomNav } from '@/components/BottomNav';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -83,7 +84,7 @@ export default function ProjectsPage() {
   }, [sessions, router]);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-900 flex flex-col pb-20">
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between">
@@ -206,6 +207,8 @@ export default function ProjectsPage() {
           onViewFullOutput={getLastSessionOutput}
         />
       )}
+
+      <BottomNav />
     </div>
   );
 }
