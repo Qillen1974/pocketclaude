@@ -15,7 +15,7 @@ export interface AuthPayload {
 }
 
 export interface CommandPayload {
-  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'smart_command' | 'upload_file';
+  command: 'list_projects' | 'list_sessions' | 'start_session' | 'send_input' | 'close_session' | 'smart_command' | 'upload_file' | 'list_scheduled_tasks' | 'approve_scheduled_task' | 'reject_scheduled_task' | 'complete_scheduled_task';
   projectId?: string;
   input?: string;
   sessionId?: string;  // Required for send_input and close_session
@@ -23,6 +23,8 @@ export interface CommandPayload {
   fileName?: string;
   fileContent?: string;  // Base64 encoded
   mimeType?: string;
+  // TaskQuadrant integration fields
+  taskId?: string;
 }
 
 export interface OutputPayload {
@@ -31,9 +33,20 @@ export interface OutputPayload {
 }
 
 export interface StatusPayload {
-  status: 'connected' | 'disconnected' | 'session_started' | 'session_closed' | 'projects_list' | 'sessions_list' | 'agent_connected' | 'agent_disconnected';
+  status: 'connected' | 'disconnected' | 'session_started' | 'session_closed' | 'projects_list' | 'sessions_list' | 'agent_connected' | 'agent_disconnected' | 'taskquadrant_task' | 'scheduled_tasks' | 'task_started' | 'task_rejected' | 'task_completed';
   data?: unknown;
   sessionId?: string;
+}
+
+// TaskQuadrant task payload for incoming webhooks
+export interface TaskQuadrantTaskPayload {
+  taskId: string;
+  title: string;
+  description?: string;
+  projectName: string;
+  startTime?: string;
+  dueDate?: string;
+  priority?: string;
 }
 
 export interface ErrorPayload {

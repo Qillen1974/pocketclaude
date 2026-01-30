@@ -3,9 +3,14 @@ import * as dotenv from 'dotenv';
 import { RelayClient } from './relay-client';
 import { MessageHandler } from './message-handler';
 import { OutputFormatter } from './output-formatter';
-import { ProjectInfo, SessionInfo, StatusPayload, ErrorPayload } from './types';
+import { ProjectInfo, SessionInfo, StatusPayload, ErrorPayload, TaskQuadrantTaskPayload } from './types';
 
 dotenv.config();
+
+// Helper to escape markdown special characters
+function escapeMarkdown(text: string): string {
+  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+}
 
 // Environment validation
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -143,6 +148,39 @@ bot.command('open', async (ctx) => {
   } else {
     await ctx.reply('Starting session...');
   }
+});
+
+// TaskQuadrant integration: List scheduled tasks
+bot.command('scheduled', async (ctx) => {
+  lastActiveChatId = ctx.chat.id;
+
+  if (!relayClient.isConnected()) {
+    await ctx.reply('Not connected to relay server. Reconnecting...');
+    return;
+  }
+
+  relayClient.listScheduledTasks();
+  await ctx.reply('Fetching scheduled tasks...');
+});
+
+// TaskQuadrant integration: Complete a task
+bot.command('complete', async (ctx) => {
+  lastActiveChatId = ctx.chat.id;
+  const args = ctx.message.text.split(' ').slice(1);
+
+  if (args.length === 0) {
+    await ctx.reply('Usage: /complete <taskId>');
+    return;
+  }
+
+  if (!relayClient.isConnected()) {
+    await ctx.reply('Not connected to relay server.');
+    return;
+  }
+
+  const taskId = args[0];
+  relayClient.completeScheduledTask(taskId);
+  await ctx.reply(`Marking task ${taskId} as complete...`);
 });
 
 // Handle regular text messages
@@ -292,6 +330,85 @@ relayClient.on('sessionClosed', (sessionId: string) => {
 });
 
 relayClient.on('status', (payload: StatusPayload) => {
+  // Handle TaskQuadrant task notifications
+  if (payload.status === 'taskquadrant_task' && lastActiveChatId) {
+    const task = payload.data as TaskQuadrantTaskPayload;
+    const buttons = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('Approve', `tq_approve:${task.taskId}`),
+        Markup.button.callback('Reject', `tq_reject:${task.taskId}`)
+      ],
+      [Markup.button.callback('View Details', `tq_info:${task.taskId}`)]
+    ]);
+
+    const dueStr = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '';
+    const message =
+      `*Scheduled Task Starting*\n\n` +
+      `*Title:* ${escapeMarkdown(task.title)}\n` +
+      `*Project:* ${escapeMarkdown(task.projectName)}\n` +
+      `${task.startTime ? `*Time:* ${task.startTime}\n` : ''}` +
+      `${dueStr ? `*Due:* ${dueStr}\n` : ''}` +
+      `${task.priority ? `*Priority:* ${task.priority}\n` : ''}` +
+      `\n${escapeMarkdown((task.description || 'No description').slice(0, 200))}${(task.description?.length || 0) > 200 ? '...' : ''}`;
+
+    bot.telegram.sendMessage(lastActiveChatId, message, { parse_mode: 'Markdown', ...buttons })
+      .catch(err => {
+        // Retry without markdown if parsing fails
+        bot.telegram.sendMessage(lastActiveChatId!, message.replace(/\*/g, ''), buttons).catch(console.error);
+      });
+    return;
+  }
+
+  // Handle scheduled tasks list
+  if (payload.status === 'scheduled_tasks' && lastActiveChatId) {
+    const data = payload.data as { tasks?: TaskQuadrantTaskPayload[] };
+    const tasks = data?.tasks || [];
+
+    if (tasks.length === 0) {
+      bot.telegram.sendMessage(lastActiveChatId, 'No pending scheduled tasks.').catch(console.error);
+      return;
+    }
+
+    let message = '*Pending Scheduled Tasks:*\n\n';
+    for (const task of tasks) {
+      message += `*${escapeMarkdown(task.title)}*\n`;
+      message += `  ID: \`${task.taskId.slice(0, 8)}...\`\n`;
+      message += `  Project: ${escapeMarkdown(task.projectName)}\n\n`;
+    }
+
+    bot.telegram.sendMessage(lastActiveChatId, message, { parse_mode: 'Markdown' })
+      .catch(err => {
+        bot.telegram.sendMessage(lastActiveChatId!, message.replace(/\*/g, '').replace(/`/g, '')).catch(console.error);
+      });
+    return;
+  }
+
+  // Handle task started notification
+  if (payload.status === 'task_started' && lastActiveChatId) {
+    const data = payload.data as { taskId: string; sessionId: string; projectId: string };
+    bot.telegram.sendMessage(
+      lastActiveChatId,
+      `Task started. Session: \`${data.sessionId.slice(0, 8)}...\``,
+      { parse_mode: 'Markdown' }
+    ).catch(console.error);
+    return;
+  }
+
+  // Handle task rejected notification
+  if (payload.status === 'task_rejected' && lastActiveChatId) {
+    const data = payload.data as { taskId: string };
+    bot.telegram.sendMessage(lastActiveChatId, `Task ${data.taskId.slice(0, 8)}... rejected.`).catch(console.error);
+    return;
+  }
+
+  // Handle task completed notification
+  if (payload.status === 'task_completed' && lastActiveChatId) {
+    const data = payload.data as { taskId: string };
+    bot.telegram.sendMessage(lastActiveChatId, `Task ${data.taskId.slice(0, 8)}... marked complete in TaskQuadrant.`).catch(console.error);
+    return;
+  }
+
+  // Default status handling
   if (lastActiveChatId) {
     const message = OutputFormatter.formatStatus(payload.status, JSON.stringify(payload.data));
     bot.telegram.sendMessage(lastActiveChatId, message).catch(console.error);
@@ -318,6 +435,54 @@ bot.action(/^project:(.+)$/, async (ctx) => {
       await ctx.reply(response);
     }
   }
+});
+
+// TaskQuadrant: Handle task approval button
+bot.action(/^tq_approve:(.+)$/, async (ctx) => {
+  const taskId = ctx.match[1];
+  await ctx.answerCbQuery('Starting task...');
+
+  lastActiveChatId = ctx.chat?.id || lastActiveChatId;
+  relayClient.approveScheduledTask(taskId);
+
+  try {
+    const originalText = (ctx.callbackQuery.message as any)?.text || '';
+    await ctx.editMessageText(
+      originalText + '\n\n*Status: Approved - Starting work...*',
+      { parse_mode: 'Markdown' }
+    );
+  } catch (err) {
+    // Editing may fail if message is too old
+    await ctx.reply('Task approved - starting work...');
+  }
+});
+
+// TaskQuadrant: Handle task rejection button
+bot.action(/^tq_reject:(.+)$/, async (ctx) => {
+  const taskId = ctx.match[1];
+  await ctx.answerCbQuery('Task rejected');
+
+  lastActiveChatId = ctx.chat?.id || lastActiveChatId;
+  relayClient.rejectScheduledTask(taskId);
+
+  try {
+    const originalText = (ctx.callbackQuery.message as any)?.text || '';
+    await ctx.editMessageText(
+      originalText + '\n\n*Status: Rejected*',
+      { parse_mode: 'Markdown' }
+    );
+  } catch (err) {
+    await ctx.reply('Task rejected.');
+  }
+});
+
+// TaskQuadrant: Handle view details button
+bot.action(/^tq_info:(.+)$/, async (ctx) => {
+  const taskId = ctx.match[1];
+  await ctx.answerCbQuery('Task details');
+
+  // For now, just show a message that full details are in the notification
+  await ctx.reply(`Task ID: ${taskId}\n\nFull details are in the notification above.`);
 });
 
 // Graceful shutdown
@@ -348,8 +513,8 @@ async function main() {
   // Connect to relay
   relayClient.connect();
 
-  // Start Telegram bot
-  await bot.launch();
+  // Start Telegram bot with dropPendingUpdates to avoid conflicts
+  await bot.launch({ dropPendingUpdates: true });
   console.log('[Bot] Telegram bot is running');
 
   // Enable graceful stop

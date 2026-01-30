@@ -285,6 +285,23 @@ export class RelayClient extends EventEmitter {
     }, sessionId);
   }
 
+  // TaskQuadrant integration methods
+  listScheduledTasks(): void {
+    this.sendCommand({ command: 'list_scheduled_tasks' });
+  }
+
+  approveScheduledTask(taskId: string): void {
+    this.sendCommand({ command: 'approve_scheduled_task', taskId });
+  }
+
+  rejectScheduledTask(taskId: string): void {
+    this.sendCommand({ command: 'reject_scheduled_task', taskId });
+  }
+
+  completeScheduledTask(taskId: string): void {
+    this.sendCommand({ command: 'complete_scheduled_task', taskId });
+  }
+
   getState(): RelayConnectionState {
     return this.state;
   }
